@@ -28,6 +28,7 @@ type config struct {
 type roleCategory struct {
 	Name        string
 	Description string
+	Emoji       string
 	Roles       []roleButton
 }
 
@@ -87,6 +88,7 @@ func normalizeCategories(rawCategories []roleCategoryJSON) ([]roleCategory, erro
 		category := roleCategory{
 			Name:        strings.TrimSpace(rawCategory.Name),
 			Description: strings.TrimSpace(rawCategory.Description),
+			Emoji:       strings.TrimSpace(rawCategory.Emoji),
 		}
 		if category.Name == "" {
 			return nil, fmt.Errorf("category %d: name is required", categoryIndex)
@@ -141,14 +143,29 @@ func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
 		}
 		chunk := category.Roles[start:end]
 
+		embed := discord.NewEmbedBuilder().
+			WithTitle(category.Emoji + " " + category.Name).
+			WithDescription(category.Description).
+			WithColor(0x5865F2)
+
+		// Add role fields to embed
+		for _, role := range chunk {
+			fieldValue := role.Description
+			if fieldValue == "" {
+				fieldValue = "Keine Beschreibung"
+			}
+			embed = embed.AddField(role.Label, fieldValue, false)
+		}
+
 		message := discord.NewMessageCreate().
-			WithContent(categoryMessageContent(category, start > 0, chunk)).
+			WithEmbeds(embed.Build()).
 			WithAllowedMentions(&discord.AllowedMentions{
 				Parse: []discord.AllowedMentionType{},
 				Roles: []snowflake.ID{},
 				Users: []snowflake.ID{},
 			})
 
+		// Add buttons in rows
 		for rowStart := 0; rowStart < len(chunk); rowStart += maxButtonsPerRow {
 			rowEnd := rowStart + maxButtonsPerRow
 			if rowEnd > len(chunk) {
@@ -166,34 +183,6 @@ func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
 	}
 
 	return messages
-}
-
-func categoryMessageContent(category roleCategory, continuation bool, roles []roleButton) string {
-	var content strings.Builder
-	content.WriteString("## ")
-	content.WriteString(category.Name)
-	if continuation {
-		content.WriteString(" (Fortsetzung)")
-	}
-	content.WriteString("\n")
-	if category.Description != "" {
-		content.WriteString(category.Description)
-		content.WriteString("\n")
-	}
-	content.WriteString("\n")
-	for _, role := range roles {
-		content.WriteString("- **")
-		content.WriteString(role.Label)
-		content.WriteString("** (<@&")
-		content.WriteString(role.RoleID.String())
-		content.WriteString(">)")
-		if role.Description != "" {
-			content.WriteString(": ")
-			content.WriteString(role.Description)
-		}
-		content.WriteString("\n")
-	}
-	return strings.TrimSpace(content.String())
 }
 
 func (r roleButton) component() discord.ButtonComponent {
@@ -249,6 +238,7 @@ func parseSnowflake(raw string) (snowflake.ID, error) {
 type roleCategoryJSON struct {
 	Name        string           `json:"name"`
 	Description string           `json:"description"`
+	Emoji       string           `json:"emoji"`
 	Roles       []roleButtonJSON `json:"roles"`
 }
 

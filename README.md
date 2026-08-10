@@ -21,11 +21,12 @@ export ROLE_CATEGORIES_JSON='[
   {
     "name": "Filme",
     "description": "Rollen für Filmabende",
+    "emoji": "🎬",
     "roles": [
       {
         "role_id": "987654321098765432",
-        "label": "Filmrolle",
-        "description": "Benachrichtigungen zu Filmen",
+        "label": "Filmschauer",
+        "description": "Benachrichtigungen zu Filmen und Serien",
         "custom_id": "film_role_toggle",
         "style": "primary"
       }
@@ -34,6 +35,7 @@ export ROLE_CATEGORIES_JSON='[
   {
     "name": "Games",
     "description": "Optionale Spiele-Rollen",
+    "emoji": "🎮",
     "roles": [
       {
         "role_id": "111111111111111111",
