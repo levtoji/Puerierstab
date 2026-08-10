@@ -97,12 +97,13 @@ func handleClearChat(event *events.ApplicationCommandInteractionCreate) {
 	}
 
 	channelID := event.Channel().ID()
+	cutoff := time.Now().Add(-14 * 24 * time.Hour)
 	var totalDeleted int
 
 	for totalDeleted < 1000 {
 		messages, err := event.Client().Rest.GetMessages(channelID, 0, 0, 0, 100)
 		if err != nil {
-			respond(event, fmt.Sprintf("Fehler beim Laden der Nachrichten: %v", err))
+			respond(event, fmt.Sprintf("Fehler: %v", err))
 			return
 		}
 		if len(messages) == 0 {
@@ -111,11 +112,36 @@ func handleClearChat(event *events.ApplicationCommandInteractionCreate) {
 
 		var ids []snowflake.ID
 		for _, msg := range messages {
-			ids = append(ids, msg.ID)
+			if msg.ID.Time().After(cutoff) {
+				ids = append(ids, msg.ID)
+			}
+		}
+
+		if len(ids) == 0 {
+			// All messages are > 14 days old, try individual deletion
+			for _, msg := range messages {
+				if err := event.Client().Rest.DeleteMessage(channelID, msg.ID); err != nil {
+					respond(event, fmt.Sprintf("%d Nachrichten gelöscht (weitere zu alt)", totalDeleted))
+					return
+				}
+				totalDeleted++
+			}
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+
+		if len(ids) == 1 {
+			if err := event.Client().Rest.DeleteMessage(channelID, ids[0]); err != nil {
+				respond(event, fmt.Sprintf("%d Nachrichten gelöscht (weitere zu alt)", totalDeleted))
+				return
+			}
+			totalDeleted++
+			time.Sleep(200 * time.Millisecond)
+			continue
 		}
 
 		if err := event.Client().Rest.BulkDeleteMessages(channelID, ids); err != nil {
-			respond(event, fmt.Sprintf("%d Nachrichten gelöscht (Limit erreicht)", totalDeleted))
+			respond(event, fmt.Sprintf("%d Nachrichten gelöscht (Rest zu alt für Bulk-Delete)", totalDeleted))
 			return
 		}
 		totalDeleted += len(ids)
@@ -123,7 +149,7 @@ func handleClearChat(event *events.ApplicationCommandInteractionCreate) {
 	}
 
 	if totalDeleted == 0 {
-		respond(event, "Keine Nachrichten zum Löschen gefunden")
+		respond(event, "Keine löschbaren Nachrichten gefunden")
 	} else {
 		respond(event, fmt.Sprintf("%d Nachrichten gelöscht", totalDeleted))
 	}
