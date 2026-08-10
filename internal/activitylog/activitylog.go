@@ -115,12 +115,30 @@ func (l *ActivityLog) roleName(client *bot.Client, guildID, roleID snowflake.ID)
 	if role, ok := client.Caches.Role(guildID, roleID); ok && role.Name != "" {
 		return role.Name
 	}
+	roles, err := client.Rest.GetRoles(guildID)
+	if err != nil {
+		slog.Warn("failed to fetch guild roles", slog.Any("err", err))
+		return roleID.String()
+	}
+	for _, role := range roles {
+		if role.ID == roleID {
+			return role.Name
+		}
+	}
 	return roleID.String()
 }
 
 func (l *ActivityLog) channelName(client *bot.Client, channelID snowflake.ID) string {
 	if channel, ok := client.Caches.GuildVoiceChannel(channelID); ok {
 		return channel.Name()
+	}
+	channel, err := client.Rest.GetChannel(channelID)
+	if err != nil {
+		slog.Warn("failed to fetch channel", slog.Any("err", err))
+		return channelID.String()
+	}
+	if gvc, ok := channel.(discord.GuildVoiceChannel); ok {
+		return gvc.Name()
 	}
 	return channelID.String()
 }
