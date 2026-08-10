@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"encoding/json"
@@ -13,26 +13,26 @@ import (
 )
 
 const (
-	roleConfigEnv    = "ROLE_CATEGORIES_JSON"
-	roleChannelEnv   = "ROLE_CHANNEL_ID"
-	maxButtonsPerRow = 5
+	roleConfigEnv     = "ROLE_CATEGORIES_JSON"
+	roleChannelEnv    = "ROLE_CHANNEL_ID"
+	maxButtonsPerRow  = 5
 	maxRowsPerMessage = 5
 )
 
-type config struct {
+type Config struct {
 	Token         string
 	RoleChannelID snowflake.ID
-	Categories    []roleCategory
+	Categories    []RoleCategory
 }
 
-type roleCategory struct {
+type RoleCategory struct {
 	Name        string
 	Description string
 	Emoji       string
-	Roles       []roleButton
+	Roles       []RoleButton
 }
 
-type roleButton struct {
+type RoleButton struct {
 	RoleID      snowflake.ID
 	Label       string
 	Description string
@@ -40,30 +40,30 @@ type roleButton struct {
 	Style       string
 }
 
-func loadConfigFromEnv() (config, error) {
+func LoadConfigFromEnv() (Config, error) {
 	token := strings.TrimSpace(os.Getenv("DISCORD_BOT_TOKEN"))
 	if token == "" {
-		return config{}, errors.New("missing DISCORD_BOT_TOKEN")
+		return Config{}, errors.New("missing DISCORD_BOT_TOKEN")
 	}
 
 	roleChannelID, err := parseSnowflakeEnv(roleChannelEnv)
 	if err != nil {
-		return config{}, err
+		return Config{}, err
 	}
 
 	categories, err := loadRoleCategories()
 	if err != nil {
-		return config{}, err
+		return Config{}, err
 	}
 
-	return config{
+	return Config{
 		Token:         token,
 		RoleChannelID: roleChannelID,
 		Categories:    categories,
 	}, nil
 }
 
-func loadRoleCategories() ([]roleCategory, error) {
+func loadRoleCategories() ([]RoleCategory, error) {
 	raw := strings.TrimSpace(os.Getenv(roleConfigEnv))
 	if raw == "" {
 		return nil, fmt.Errorf("missing %s", roleConfigEnv)
@@ -76,16 +76,16 @@ func loadRoleCategories() ([]roleCategory, error) {
 	return normalizeCategories(categories)
 }
 
-func normalizeCategories(rawCategories []roleCategoryJSON) ([]roleCategory, error) {
+func normalizeCategories(rawCategories []roleCategoryJSON) ([]RoleCategory, error) {
 	if len(rawCategories) == 0 {
 		return nil, errors.New("at least one role category is required")
 	}
 
-	categories := make([]roleCategory, 0, len(rawCategories))
+	categories := make([]RoleCategory, 0, len(rawCategories))
 	seenCustomIDs := make(map[string]struct{})
 
 	for categoryIndex, rawCategory := range rawCategories {
-		category := roleCategory{
+		category := RoleCategory{
 			Name:        strings.TrimSpace(rawCategory.Name),
 			Description: strings.TrimSpace(rawCategory.Description),
 			Emoji:       strings.TrimSpace(rawCategory.Emoji),
@@ -97,7 +97,7 @@ func normalizeCategories(rawCategories []roleCategoryJSON) ([]roleCategory, erro
 			return nil, fmt.Errorf("category %q: at least one role is required", category.Name)
 		}
 
-		category.Roles = make([]roleButton, 0, len(rawCategory.Roles))
+		category.Roles = make([]RoleButton, 0, len(rawCategory.Roles))
 		for roleIndex, rawRole := range rawCategory.Roles {
 			label := strings.TrimSpace(rawRole.Label)
 			if label == "" {
@@ -113,7 +113,7 @@ func normalizeCategories(rawCategories []roleCategoryJSON) ([]roleCategory, erro
 			}
 			seenCustomIDs[customID] = struct{}{}
 
-			category.Roles = append(category.Roles, roleButton{
+			category.Roles = append(category.Roles, RoleButton{
 				RoleID:      snowflake.ID(rawRole.RoleID),
 				Label:       label,
 				Description: strings.TrimSpace(rawRole.Description),
@@ -128,7 +128,7 @@ func normalizeCategories(rawCategories []roleCategoryJSON) ([]roleCategory, erro
 	return categories, nil
 }
 
-func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
+func BuildCategoryMessages(category RoleCategory) []discord.MessageCreate {
 	const maxButtonsPerMessage = maxButtonsPerRow * maxRowsPerMessage
 
 	if len(category.Roles) == 0 {
@@ -150,7 +150,6 @@ func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
 			Fields:      []discord.EmbedField{},
 		}
 
-		// Add role fields to embed
 		for _, role := range chunk {
 			fieldValue := role.Description
 			if fieldValue == "" {
@@ -170,7 +169,6 @@ func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
 				Users: []snowflake.ID{},
 			})
 
-		// Add buttons in rows
 		for rowStart := 0; rowStart < len(chunk); rowStart += maxButtonsPerRow {
 			rowEnd := rowStart + maxButtonsPerRow
 			if rowEnd > len(chunk) {
@@ -190,7 +188,7 @@ func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
 	return messages
 }
 
-func (r roleButton) component() discord.ButtonComponent {
+func (r RoleButton) component() discord.ButtonComponent {
 	switch strings.ToLower(r.Style) {
 	case "success":
 		return discord.NewSuccessButton(r.Label, r.CustomID)
@@ -203,7 +201,7 @@ func (r roleButton) component() discord.ButtonComponent {
 	}
 }
 
-func memberHasRole(roleIDs []snowflake.ID, roleID snowflake.ID) bool {
+func MemberHasRole(roleIDs []snowflake.ID, roleID snowflake.ID) bool {
 	for _, existingRoleID := range roleIDs {
 		if existingRoleID == roleID {
 			return true

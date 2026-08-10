@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"strings"
@@ -13,9 +13,9 @@ func TestLoadConfigFromEnvWithJSONConfig(t *testing.T) {
 	t.Setenv(roleChannelEnv, "123456789012345678")
 	t.Setenv(roleConfigEnv, `[{"name":"Filme","description":"Filmrollen","emoji":"🎬","roles":[{"role_id":"987654321098765432","label":"Film","description":"Ping für Filme","custom_id":"film_role_toggle","style":"success"}]}]`)
 
-	cfg, err := loadConfigFromEnv()
+	cfg, err := LoadConfigFromEnv()
 	if err != nil {
-		t.Fatalf("loadConfigFromEnv() error = %v", err)
+		t.Fatalf("LoadConfigFromEnv() error = %v", err)
 	}
 
 	if cfg.Token != "token" {
@@ -47,7 +47,7 @@ func TestLoadConfigFromEnvMissingRoleCategoriesJSON(t *testing.T) {
 	t.Setenv(roleChannelEnv, "123456789012345678")
 	t.Setenv(roleConfigEnv, "")
 
-	_, err := loadConfigFromEnv()
+	_, err := LoadConfigFromEnv()
 	if err == nil {
 		t.Fatalf("expected error when ROLE_CATEGORIES_JSON is missing, got nil")
 	}
@@ -61,7 +61,7 @@ func TestLoadConfigFromEnvMissingToken(t *testing.T) {
 	t.Setenv(roleChannelEnv, "123456789012345678")
 	t.Setenv(roleConfigEnv, `[{"name":"Test","emoji":"🎮","roles":[]}]`)
 
-	_, err := loadConfigFromEnv()
+	_, err := LoadConfigFromEnv()
 	if err == nil {
 		t.Fatalf("expected error when DISCORD_BOT_TOKEN is missing, got nil")
 	}
@@ -71,9 +71,9 @@ func TestLoadConfigFromEnvMissingToken(t *testing.T) {
 }
 
 func TestBuildCategoryMessagesChunksButtonsIntoMultipleMessages(t *testing.T) {
-	roles := make([]roleButton, 0, 26)
+	roles := make([]RoleButton, 0, 26)
 	for i := 0; i < 26; i++ {
-		roles = append(roles, roleButton{
+		roles = append(roles, RoleButton{
 			RoleID:      snowflake.ID(1000 + i),
 			Label:       "Rolle " + string(rune('A'+(i%26))),
 			Description: "Desc " + string(rune('a'+(i%26))),
@@ -81,7 +81,7 @@ func TestBuildCategoryMessagesChunksButtonsIntoMultipleMessages(t *testing.T) {
 		})
 	}
 
-	messages := buildCategoryMessages(roleCategory{
+	messages := BuildCategoryMessages(RoleCategory{
 		Name:        "Games",
 		Description: "Selbstbedienungsrollen",
 		Emoji:       "🎮",
@@ -92,7 +92,6 @@ func TestBuildCategoryMessagesChunksButtonsIntoMultipleMessages(t *testing.T) {
 		t.Fatalf("expected 2 messages for 26 buttons, got %d", len(messages))
 	}
 
-	// Check first message
 	if len(messages[0].Components) != maxRowsPerMessage {
 		t.Fatalf("expected %d action rows in first message, got %d", maxRowsPerMessage, len(messages[0].Components))
 	}
@@ -104,7 +103,6 @@ func TestBuildCategoryMessagesChunksButtonsIntoMultipleMessages(t *testing.T) {
 		t.Fatalf("expected title '🎮 Games', got %q", embed.Title)
 	}
 
-	// Check second message
 	if len(messages[1].Components) != 1 {
 		t.Fatalf("expected 1 action row in second message, got %d", len(messages[1].Components))
 	}
@@ -119,18 +117,45 @@ func TestRoleButtonComponentUsesRequestedStyle(t *testing.T) {
 		{"danger", discord.ButtonStyleDanger},
 		{"success", discord.ButtonStyleSuccess},
 		{"secondary", discord.ButtonStyleSecondary},
-		{"unknown", discord.ButtonStylePrimary}, // defaults to primary
+		{"unknown", discord.ButtonStylePrimary},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.style, func(t *testing.T) {
-			button := roleButton{
+			button := RoleButton{
 				Label:    "Test",
 				CustomID: "test",
 				Style:    tt.style,
 			}.component()
 			if button.Style != tt.expectedEnum {
 				t.Fatalf("expected style %v, got %v", tt.expectedEnum, button.Style)
+			}
+		})
+	}
+}
+
+func TestMemberHasRole(t *testing.T) {
+	roleID1 := snowflake.MustParse("111111111111111111")
+	roleID2 := snowflake.MustParse("222222222222222222")
+	roleID3 := snowflake.MustParse("333333333333333333")
+
+	memberRoles := []snowflake.ID{roleID1, roleID3}
+
+	tests := []struct {
+		name     string
+		roleID   snowflake.ID
+		expected bool
+	}{
+		{"has role 1", roleID1, true},
+		{"has role 3", roleID3, true},
+		{"missing role 2", roleID2, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := MemberHasRole(memberRoles, tt.roleID)
+			if result != tt.expected {
+				t.Fatalf("expected %v, got %v", tt.expected, result)
 			}
 		})
 	}
@@ -250,12 +275,10 @@ func TestNormalizeCategoriesAutoGenerateCustomID(t *testing.T) {
 		t.Fatalf("expected 2 roles, got %d", len(roles))
 	}
 
-	// First role should have auto-generated custom ID
 	if !strings.Contains(roles[0].CustomID, "111") {
 		t.Fatalf("expected auto-generated custom_id to contain role ID 111, got %q", roles[0].CustomID)
 	}
 
-	// Second role should use provided custom ID
 	if roles[1].CustomID != "custom_r2" {
 		t.Fatalf("expected custom_r2, got %q", roles[1].CustomID)
 	}
