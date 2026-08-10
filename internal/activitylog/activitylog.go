@@ -3,6 +3,7 @@ package activitylog
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
@@ -11,7 +12,10 @@ import (
 )
 
 type ActivityLog struct {
-	channelID snowflake.ID
+	channelID  snowflake.ID
+	lastSeqMu  sync.Mutex
+	lastSeq    int
+	hasLastSeq bool
 }
 
 func New(channelID snowflake.ID) *ActivityLog {
@@ -155,15 +159,35 @@ func (l *ActivityLog) post(client *bot.Client, embed discord.Embed) {
 
 // ---- Event handlers ----
 
+func (l *ActivityLog) isDuplicate(seq int) bool {
+	l.lastSeqMu.Lock()
+	defer l.lastSeqMu.Unlock()
+	if l.hasLastSeq && l.lastSeq == seq {
+		return true
+	}
+	l.lastSeq = seq
+	l.hasLastSeq = true
+	return false
+}
+
 func (l *ActivityLog) OnGuildMemberJoin(event *events.GuildMemberJoin) {
+	if l.isDuplicate(event.SequenceNumber()) {
+		return
+	}
 	l.post(event.Client(), joinEmbed(event.Member))
 }
 
 func (l *ActivityLog) OnGuildMemberLeave(event *events.GuildMemberLeave) {
+	if l.isDuplicate(event.SequenceNumber()) {
+		return
+	}
 	l.post(event.Client(), leaveEmbed(event.Member))
 }
 
 func (l *ActivityLog) OnGuildMemberUpdate(event *events.GuildMemberUpdate) {
+	if l.isDuplicate(event.SequenceNumber()) {
+		return
+	}
 	oldName, newName, changed := nickDiff(event.OldMember, event.Member)
 	if changed {
 		l.post(event.Client(), nickChangeEmbed(event.Member, oldName, newName))
@@ -179,13 +203,16 @@ func (l *ActivityLog) OnGuildMemberUpdate(event *events.GuildMemberUpdate) {
 }
 
 func (l *ActivityLog) OnGuildVoiceJoin(event *events.GuildVoiceJoin) {
-	if event.VoiceState.ChannelID == nil {
+	if l.isDuplicate(event.SequenceNumber()) || event.VoiceState.ChannelID == nil {
 		return
 	}
 	l.post(event.Client(), voiceJoinEmbed(event.Member, l.channelName(event.Client(), *event.VoiceState.ChannelID)))
 }
 
 func (l *ActivityLog) OnGuildVoiceMove(event *events.GuildVoiceMove) {
+	if l.isDuplicate(event.SequenceNumber()) {
+		return
+	}
 	from := event.OldVoiceState.ChannelID
 	to := event.VoiceState.ChannelID
 	if from == nil || to == nil {
@@ -195,6 +222,9 @@ func (l *ActivityLog) OnGuildVoiceMove(event *events.GuildVoiceMove) {
 }
 
 func (l *ActivityLog) OnGuildVoiceLeave(event *events.GuildVoiceLeave) {
+	if l.isDuplicate(event.SequenceNumber()) {
+		return
+	}
 	from := event.OldVoiceState.ChannelID
 	if from == nil {
 		return
