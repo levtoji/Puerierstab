@@ -13,12 +13,10 @@ import (
 )
 
 const (
-	roleConfigEnv      = "ROLE_CATEGORIES_JSON"
-	roleChannelEnv     = "ROLE_CHANNEL_ID"
-	legacyFilmRoleEnv  = "FILM_ROLE_ID"
-	legacyFilmCustomID = "film_role_toggle"
-	maxButtonsPerRow   = 5
-	maxRowsPerMessage  = 5
+	roleConfigEnv    = "ROLE_CATEGORIES_JSON"
+	roleChannelEnv   = "ROLE_CHANNEL_ID"
+	maxButtonsPerRow = 5
+	maxRowsPerMessage = 5
 )
 
 type config struct {
@@ -42,9 +40,9 @@ type roleButton struct {
 }
 
 func loadConfigFromEnv() (config, error) {
-	token := strings.TrimSpace(firstEnv("DISGOCORD_BOT_TOKEN", "DISCORD_BOT_TOKEN"))
+	token := strings.TrimSpace(os.Getenv("DISCORD_BOT_TOKEN"))
 	if token == "" {
-		return config{}, errors.New("missing DISGOCORD_BOT_TOKEN or DISCORD_BOT_TOKEN")
+		return config{}, errors.New("missing DISCORD_BOT_TOKEN")
 	}
 
 	roleChannelID, err := parseSnowflakeEnv(roleChannelEnv)
@@ -65,34 +63,16 @@ func loadConfigFromEnv() (config, error) {
 }
 
 func loadRoleCategories() ([]roleCategory, error) {
-	if raw := strings.TrimSpace(os.Getenv(roleConfigEnv)); raw != "" {
-		var categories []roleCategoryJSON
-		if err := json.Unmarshal([]byte(raw), &categories); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", roleConfigEnv, err)
-		}
-		return normalizeCategories(categories)
+	raw := strings.TrimSpace(os.Getenv(roleConfigEnv))
+	if raw == "" {
+		return nil, fmt.Errorf("missing %s", roleConfigEnv)
 	}
 
-	filmRoleID, err := parseSnowflakeEnv(legacyFilmRoleEnv)
-	if err != nil {
-		return nil, fmt.Errorf("missing %s or %s: %w", roleConfigEnv, legacyFilmRoleEnv, err)
+	var categories []roleCategoryJSON
+	if err := json.Unmarshal([]byte(raw), &categories); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", roleConfigEnv, err)
 	}
-
-	return []roleCategory{
-		{
-			Name:        "Filme",
-			Description: "Klicke auf den Button, um dir die Filmrolle selbst zu geben oder wieder zu entfernen.",
-			Roles: []roleButton{
-				{
-					RoleID:      filmRoleID,
-					Label:       "Filmrolle",
-					Description: "Selbstbedienungsrolle für Film-Benachrichtigungen",
-					CustomID:    legacyFilmCustomID,
-					Style:       "primary",
-				},
-			},
-		},
-	}, nil
+	return normalizeCategories(categories)
 }
 
 func normalizeCategories(rawCategories []roleCategoryJSON) ([]roleCategory, error) {

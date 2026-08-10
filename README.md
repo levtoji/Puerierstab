@@ -4,19 +4,19 @@ Discord-Bot in Go mit `disgo`, der Rollen per Button als Selbstbedienung vergibt
 
 ## Konfiguration
 
-Der Bot liest seinen Token aus `DISGOCORD_BOT_TOKEN` oder `DISCORD_BOT_TOKEN`.
+Der Bot benötigt folgende Umgebungsvariablen:
 
-Zusätzlich wird ein Ziel-Channel für die Rollenübersicht benötigt:
+### Erforderlich
+
+- **`DISCORD_BOT_TOKEN`** — Der Bot-Token von Discord
+- **`ROLE_CHANNEL_ID`** — Die Discord-Channel-ID, in der die Rollenbuttons gepostet werden
+- **`ROLE_CATEGORIES_JSON`** — JSON-Konfiguration für die Rollenkategorien und Buttons
+
+### Konfigurationsbeispiel
 
 ```bash
+export DISCORD_BOT_TOKEN="your_bot_token"
 export ROLE_CHANNEL_ID=123456789012345678
-```
-
-### Rollen per JSON konfigurieren
-
-Die bevorzugte Konfiguration läuft über `ROLE_CATEGORIES_JSON`. Jede Kategorie wird beim Start in den konfigurierten Channel geschrieben und enthält die zugehörigen Buttons.
-
-```bash
 export ROLE_CATEGORIES_JSON='[
   {
     "name": "Filme",
@@ -53,16 +53,6 @@ export ROLE_CATEGORIES_JSON='[
   }
 ]'
 ```
-
-### Kompatibilitätsmodus für die Filmrolle
-
-Wenn nur eine einzelne Filmrolle gebraucht wird, reicht alternativ:
-
-```bash
-export FILM_ROLE_ID=987654321098765432
-```
-
-Dann erstellt der Bot automatisch eine Kategorie `Filme` mit einem Button auf der Custom-ID `film_role_toggle`.
 
 ## Starten
 
