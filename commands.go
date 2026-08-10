@@ -3,27 +3,34 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
-	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/omit"
 	"github.com/disgoorg/snowflake/v2"
 )
 
-func registerCommands(client *bot.Client) {
-	perms := discord.Permissions(discord.PermissionAdministrator)
-	_, err := client.Rest.SetGlobalCommands(client.ApplicationID, []discord.ApplicationCommandCreate{
-		discord.SlashCommandCreate{
-			Name:                     "clear-chat",
-			Description:              "Löscht alle Nachrichten in diesem Kanal",
-			DefaultMemberPermissions: omit.NewPtr(perms),
-		},
+var registerOnce sync.Once
+
+func registerCommandsOnReady(event *events.Ready) {
+	registerOnce.Do(func() {
+		perms := discord.Permissions(discord.PermissionAdministrator)
+		cmd, err := event.Client().Rest.CreateGlobalCommand(
+			event.Client().ApplicationID,
+			discord.SlashCommandCreate{
+				Name:                     "clear-chat",
+				Description:              "Löscht alle Nachrichten in diesem Kanal",
+				DefaultMemberPermissions: omit.NewPtr(perms),
+			},
+		)
+		if err != nil {
+			slog.Error("failed to register clear-chat command — bot needs applications.commands scope", slog.Any("err", err))
+			return
+		}
+		slog.Info("registered slash command", slog.String("name", cmd.Name()), slog.String("id", cmd.ID().String()))
 	})
-	if err != nil {
-		slog.Error("failed to register slash commands", slog.Any("err", err))
-	}
 }
 
 func handleSlashCommand(event *events.ApplicationCommandInteractionCreate) {

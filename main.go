@@ -36,6 +36,7 @@ func run() error {
 	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers}
 	listeners := []bot.ConfigOpt{
 		bot.WithEventListenerFunc(app.OnReady),
+		bot.WithEventListenerFunc(registerCommandsOnReady),
 		bot.WithEventListenerFunc(app.OnComponentInteraction),
 		bot.WithEventListenerFunc(handleSlashCommand),
 	}
@@ -63,8 +64,6 @@ func run() error {
 		return err
 	}
 	defer client.Close(context.Background())
-
-	registerCommands(client)
 
 	if err = client.OpenGateway(context.Background()); err != nil {
 		return err
