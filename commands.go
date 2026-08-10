@@ -16,10 +16,21 @@ var registerOnce sync.Once
 
 func registerCommandsOnReady(event *events.GuildReady) {
 	registerOnce.Do(func() {
+		appID := event.Client().ApplicationID
+		guildID := event.GuildID
+
+		if existing, err := event.Client().Rest.GetGuildCommands(appID, guildID, false); err == nil {
+			for _, cmd := range existing {
+				if cmd.Name() == "clear-chat" {
+					if err := event.Client().Rest.DeleteGuildCommand(appID, guildID, cmd.ID()); err != nil {
+						slog.Warn("failed to delete stale slash command", slog.String("id", cmd.ID().String()), slog.Any("err", err))
+					}
+				}
+			}
+		}
+
 		perms := discord.Permissions(discord.PermissionAdministrator)
-		cmd, err := event.Client().Rest.CreateGuildCommand(
-			event.Client().ApplicationID,
-			event.GuildID,
+		cmd, err := event.Client().Rest.CreateGuildCommand(appID, guildID,
 			discord.SlashCommandCreate{
 				Name:                     "clear-chat",
 				Description:              "Löscht alle Nachrichten in diesem Kanal",
@@ -30,7 +41,7 @@ func registerCommandsOnReady(event *events.GuildReady) {
 			slog.Error("failed to register clear-chat command", slog.Any("err", err))
 			return
 		}
-		slog.Info("registered slash command", slog.String("name", cmd.Name()), slog.String("id", cmd.ID().String()), slog.String("guild_id", event.GuildID.String()))
+		slog.Info("registered slash command", slog.String("name", cmd.Name()), slog.String("id", cmd.ID().String()), slog.String("guild_id", guildID.String()))
 	})
 }
 
