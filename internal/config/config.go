@@ -71,7 +71,10 @@ func LoadConfigFromEnv() (Config, error) {
 		return Config{}, fmt.Errorf("%s: %w", activityLogChannelEnv, err)
 	}
 
-	renameChannelIDs, _ := parseChannelIDsEnv(renameChannelIDsEnv)
+	renameChannelIDs, err := parseChannelIDsEnv(renameChannelIDsEnv)
+	if err != nil {
+		return Config{}, fmt.Errorf("%s: %w", renameChannelIDsEnv, err)
+	}
 	aiAPIKey := strings.TrimSpace(os.Getenv(aiAPIKeyEnv))
 	aiModel := strings.TrimSpace(os.Getenv(aiModelEnv))
 	aiBaseURL := strings.TrimSpace(os.Getenv(aiBaseURLEnv))

@@ -92,8 +92,11 @@ func run() error {
 	slog.Info("role bot is running", slog.String("version", disgo.Version), slog.String("role_channel_id", cfg.RoleChannelID.String()))
 
 	if namer != nil {
+		slog.Info("channel namer active", slog.Int("channels", len(cfg.RenameChannelIDs)))
 		stopNamer := namer.Start(client)
 		defer close(stopNamer)
+	} else if len(cfg.RenameChannelIDs) > 0 {
+		slog.Warn("channel namer disabled — AI_API_KEY missing")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
