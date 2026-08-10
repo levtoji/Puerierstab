@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
 )
 
@@ -41,8 +42,7 @@ func TestNewRoleBotInitializesRoleMap(t *testing.T) {
 		},
 	}
 
-	store := &messageStore{Messages: []storedMessage{}}
-	bot := newRoleBot(cfg, store)
+	bot := newRoleBot(cfg)
 
 	if len(bot.roleByCustomID) != 3 {
 		t.Fatalf("expected 3 roles, got %d", len(bot.roleByCustomID))
@@ -168,5 +168,188 @@ func TestFormatRoleMessages(t *testing.T) {
 	removeMsg := fmtRoleRemoved(role)
 	if removeMsg != "Die Rolle „TestRole“ wurde dir entfernt." {
 		t.Fatalf("unexpected removal message: %q", removeMsg)
+	}
+}
+
+func TestCollectButtonCustomIDs(t *testing.T) {
+	tests := []struct {
+		name       string
+		components []discord.LayoutComponent
+		expected   customIDSet
+	}{
+		{
+			"single row single button",
+			[]discord.LayoutComponent{
+				discord.ActionRowComponent{
+					Components: []discord.InteractiveComponent{
+						discord.NewPrimaryButton("Film", "film_role_toggle"),
+					},
+				},
+			},
+			customIDSet{"film_role_toggle": {}},
+		},
+		{
+			"multiple rows multiple buttons",
+			[]discord.LayoutComponent{
+				discord.ActionRowComponent{
+					Components: []discord.InteractiveComponent{
+						discord.NewPrimaryButton("A", "custom_a"),
+						discord.NewSuccessButton("B", "custom_b"),
+					},
+				},
+				discord.ActionRowComponent{
+					Components: []discord.InteractiveComponent{
+						discord.NewDangerButton("C", "custom_c"),
+					},
+				},
+			},
+			customIDSet{"custom_a": {}, "custom_b": {}, "custom_c": {}},
+		},
+		{
+			"non-button components ignored",
+			[]discord.LayoutComponent{
+				discord.ActionRowComponent{
+					Components: []discord.InteractiveComponent{
+						discord.NewPrimaryButton("Film", "film_role_toggle"),
+					},
+				},
+			},
+			customIDSet{"film_role_toggle": {}},
+		},
+		{
+			"empty components",
+			[]discord.LayoutComponent{},
+			customIDSet{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := collectButtonCustomIDs(tt.components)
+			if len(result) != len(tt.expected) {
+				t.Fatalf("expected %d custom IDs, got %d: %v", len(tt.expected), len(result), result)
+			}
+			for customID := range tt.expected {
+				if _, ok := result[customID]; !ok {
+					t.Fatalf("expected custom ID %q in result, got %v", customID, result)
+				}
+			}
+		})
+	}
+}
+
+func TestCustomIDSetKeyIsDeterministic(t *testing.T) {
+	first := customIDSet{"b": {}, "a": {}, "c": {}}
+	second := customIDSet{"c": {}, "a": {}, "b": {}}
+
+	if first.key() != second.key() {
+		t.Fatalf("expected identical keys for same set, got %q and %q", first.key(), second.key())
+	}
+
+	// Different sets must produce different keys
+	third := customIDSet{"a": {}, "b": {}}
+	if first.key() == third.key() {
+		t.Fatalf("expected different keys for different sets")
+	}
+}
+
+func TestIndexMessagesByCustomIDs(t *testing.T) {
+	messageA := discord.Message{
+		ID:     snowflake.MustParse("111111111111111111"),
+		Author: discord.User{ID: snowflake.MustParse("999999999999999999"), Bot: true},
+		Components: []discord.LayoutComponent{
+			discord.ActionRowComponent{
+				Components: []discord.InteractiveComponent{
+					discord.NewPrimaryButton("A", "custom_a"),
+				},
+			},
+		},
+	}
+	messageB := discord.Message{
+		ID:     snowflake.MustParse("222222222222222222"),
+		Author: discord.User{ID: snowflake.MustParse("999999999999999999"), Bot: true},
+		Components: []discord.LayoutComponent{
+			discord.ActionRowComponent{
+				Components: []discord.InteractiveComponent{
+					discord.NewPrimaryButton("B", "custom_b"),
+				},
+			},
+		},
+	}
+
+	index := indexMessagesByCustomIDs([]discord.Message{messageA, messageB})
+
+	if len(index) != 2 {
+		t.Fatalf("expected 2 entries in index, got %d", len(index))
+	}
+
+	keyA := customIDSet{"custom_a": {}}.key()
+	if index[keyA] != messageA.ID {
+		t.Fatalf("expected message A ID for key %q, got %s", keyA, index[keyA])
+	}
+
+	keyB := customIDSet{"custom_b": {}}.key()
+	if index[keyB] != messageB.ID {
+		t.Fatalf("expected message B ID for key %q, got %s", keyB, index[keyB])
+	}
+}
+
+func TestIsManagedRolePanelMessage(t *testing.T) {
+	bot := newRoleBot(config{
+		Categories: []roleCategory{
+			{
+				Name: "Filme",
+				Roles: []roleButton{
+					{RoleID: snowflake.ID(1), Label: "Film", CustomID: "film_role_toggle"},
+				},
+			},
+		},
+	})
+
+	managed := discord.Message{
+		Author: discord.User{Bot: true},
+		Components: []discord.LayoutComponent{
+			discord.ActionRowComponent{
+				Components: []discord.InteractiveComponent{
+					discord.NewPrimaryButton("Film", "film_role_toggle"),
+				},
+			},
+		},
+	}
+	if !bot.isManagedRolePanelMessage(managed) {
+		t.Fatalf("expected message with managed custom ID to be recognized")
+	}
+
+	// Message with a foreign custom ID should not be managed
+	foreign := discord.Message{
+		Author: discord.User{Bot: true},
+		Components: []discord.LayoutComponent{
+			discord.ActionRowComponent{
+				Components: []discord.InteractiveComponent{
+					discord.NewPrimaryButton("Other", "unrelated_custom_id"),
+				},
+			},
+		},
+	}
+	if bot.isManagedRolePanelMessage(foreign) {
+		t.Fatalf("expected foreign message to not be managed")
+	}
+}
+
+func TestMessageUpdateFromCreate(t *testing.T) {
+	messageCreate := discord.NewMessageCreate().
+		WithEmbeds(discord.Embed{Title: "🎮 Gaming", Description: "Test"}).
+		AddActionRow(discord.NewPrimaryButton("Film", "film_role_toggle"))
+
+	messageUpdate := messageUpdateFromCreate(messageCreate)
+
+	if messageUpdate.Embeds == nil || len(*messageUpdate.Embeds) != 1 {
+		t.Fatalf("expected 1 embed, got %v", messageUpdate.Embeds)
+	}
+	if (*messageUpdate.Embeds)[0].Title != "🎮 Gaming" {
+		t.Fatalf("expected embed title, got %q", (*messageUpdate.Embeds)[0].Title)
+	}
+	if messageUpdate.Components == nil || len(*messageUpdate.Components) != 1 {
+		t.Fatalf("expected 1 component, got %v", messageUpdate.Components)
 	}
 }

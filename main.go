@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -20,10 +22,9 @@ type roleBot struct {
 	config         config
 	roleByCustomID map[string]roleButton
 	syncOnce       sync.Once
-	messageStore   *messageStore
 }
 
-func newRoleBot(cfg config, store *messageStore) *roleBot {
+func newRoleBot(cfg config) *roleBot {
 	roleByCustomID := make(map[string]roleButton, totalRoleCount(cfg.Categories))
 	for _, category := range cfg.Categories {
 		for _, role := range category.Roles {
@@ -34,7 +35,6 @@ func newRoleBot(cfg config, store *messageStore) *roleBot {
 	return &roleBot{
 		config:         cfg,
 		roleByCustomID: roleByCustomID,
-		messageStore:   store,
 	}
 }
 
@@ -51,12 +51,7 @@ func run() error {
 		return err
 	}
 
-	store, err := loadMessageStore()
-	if err != nil {
-		return err
-	}
-
-	app := newRoleBot(cfg, store)
+	app := newRoleBot(cfg)
 
 	client, err := disgo.New(cfg.Token,
 		bot.WithGatewayConfigOpts(
@@ -96,37 +91,126 @@ func (b *roleBot) onReady(event *events.Ready) {
 }
 
 func (b *roleBot) publishRolePanels(client *bot.Client) error {
+	existingMessages, err := b.getRoleChannelMessages(client)
+	if err != nil {
+		return err
+	}
+
+	existingByCustomIDs := indexMessagesByCustomIDs(existingMessages)
+
 	for _, category := range b.config.Categories {
 		for messageIdx, messageCreate := range buildCategoryMessages(category) {
-			messageID, exists := b.messageStore.getMessageID(category.Name, messageIdx)
+			wantCustomIDs := messageCreateCustomIDs(messageCreate)
 
-			if exists && messageID != 0 {
-				// Try to update existing message
-				messageUpdate := discord.NewMessageUpdate().
-					WithEmbeds(messageCreate.Embeds...).
-					WithComponents(messageCreate.Components...)
-				_, err := client.Rest.UpdateMessage(b.config.RoleChannelID, messageID, messageUpdate)
-				if err == nil {
-					// Update successful
+			// Reuse an existing panel whose buttons carry the exact same custom IDs.
+			messageID, ok := existingByCustomIDs[wantCustomIDs.key()]
+			if ok {
+				if _, err := client.Rest.UpdateMessage(b.config.RoleChannelID, messageID, messageUpdateFromCreate(messageCreate)); err != nil {
+					slog.Warn("failed to update role panel, creating new", slog.String("category", category.Name), slog.Int("message_index", messageIdx), slog.Any("err", err))
+				} else {
+					delete(existingByCustomIDs, wantCustomIDs.key())
 					continue
 				}
-				// If update fails (message deleted), fall through to create
-				slog.Warn("failed to update message, will create new", slog.String("category", category.Name), slog.Any("err", err))
 			}
 
-			// Create new message
-			createdMessage, err := client.Rest.CreateMessage(b.config.RoleChannelID, messageCreate)
+			// No reusable panel found (or update failed): create a fresh one.
+			created, err := client.Rest.CreateMessage(b.config.RoleChannelID, messageCreate)
 			if err != nil {
 				return err
 			}
-
-			// Store the message ID
-			b.messageStore.setMessageID(category.Name, messageIdx, createdMessage.ID)
+			slog.Info("created new role panel", slog.String("category", category.Name), slog.Int("message_index", messageIdx), slog.String("message_id", created.ID.String()))
 		}
 	}
 
-	// Save message store
-	return b.messageStore.save()
+	// Delete leftover managed panels that are no longer configured (e.g. removed categories).
+	for _, messageID := range existingByCustomIDs {
+		if err := client.Rest.DeleteMessage(b.config.RoleChannelID, messageID); err != nil {
+			slog.Warn("failed to delete stale role panel", slog.String("message_id", messageID.String()), slog.Any("err", err))
+		}
+	}
+	return nil
+}
+
+func messageUpdateFromCreate(messageCreate discord.MessageCreate) discord.MessageUpdate {
+	return discord.NewMessageUpdate().
+		WithEmbeds(messageCreate.Embeds...).
+		WithComponents(messageCreate.Components...)
+}
+
+func (b *roleBot) getRoleChannelMessages(client *bot.Client) ([]discord.Message, error) {
+	var (
+		messages []discord.Message
+		before   snowflake.ID
+	)
+	for {
+		page, err := client.Rest.GetMessages(b.config.RoleChannelID, 0, before, 0, 100)
+		if err != nil {
+			return nil, err
+		}
+		for _, message := range page {
+			if message.Author.Bot && b.isManagedRolePanelMessage(message) {
+				messages = append(messages, message)
+			}
+		}
+		if len(page) < 100 {
+			return messages, nil
+		}
+		before = page[len(page)-1].ID
+	}
+}
+
+func (b *roleBot) isManagedRolePanelMessage(message discord.Message) bool {
+	for customID := range messageCustomIDs(message) {
+		if _, managed := b.roleByCustomID[customID]; managed {
+			return true
+		}
+	}
+	return false
+}
+
+type customIDSet map[string]struct{}
+
+func (s customIDSet) key() string {
+	keys := make([]string, 0, len(s))
+	for customID := range s {
+		keys = append(keys, customID)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, "\x00")
+}
+
+func messageCustomIDs(message discord.Message) customIDSet {
+	return collectButtonCustomIDs(message.Components)
+}
+
+func messageCreateCustomIDs(message discord.MessageCreate) customIDSet {
+	return collectButtonCustomIDs(message.Components)
+}
+
+func collectButtonCustomIDs(components []discord.LayoutComponent) customIDSet {
+	customIDs := make(customIDSet)
+	for _, layout := range components {
+		row, ok := layout.(discord.ActionRowComponent)
+		if !ok {
+			continue
+		}
+		for _, component := range row.Components {
+			button, ok := component.(discord.ButtonComponent)
+			if !ok {
+				continue
+			}
+			customIDs[button.CustomID] = struct{}{}
+		}
+	}
+	return customIDs
+}
+
+func indexMessagesByCustomIDs(messages []discord.Message) map[string]snowflake.ID {
+	index := make(map[string]snowflake.ID, len(messages))
+	for _, message := range messages {
+		index[messageCustomIDs(message).key()] = message.ID
+	}
+	return index
 }
 
 func (b *roleBot) onComponentInteraction(event *events.ComponentInteractionCreate) {
