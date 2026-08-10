@@ -28,12 +28,12 @@ func registerCommandsOnReady(event *events.GuildReady) {
 		appID := event.Client().ApplicationID
 		guildID := event.GuildID
 
-		if existing, err := event.Client().Rest.GetGuildCommands(appID, guildID, false); err == nil {
+		if existing, err := event.Client().Rest.GetGlobalCommands(appID, false); err == nil {
 			for _, cmd := range existing {
 				for _, name := range knownCommands {
 					if cmd.Name() == name {
-						if err := event.Client().Rest.DeleteGuildCommand(appID, guildID, cmd.ID()); err != nil {
-							slog.Warn("failed to delete stale slash command", slog.String("id", cmd.ID().String()), slog.Any("err", err))
+						if err := event.Client().Rest.DeleteGlobalCommand(appID, cmd.ID()); err != nil {
+							slog.Warn("failed to delete stale global command", slog.String("id", cmd.ID().String()), slog.Any("err", err))
 						}
 						break
 					}
@@ -70,13 +70,10 @@ func registerCommandsOnReady(event *events.GuildReady) {
 			},
 		}
 
-		for _, cmd := range cmds {
-			c, err := event.Client().Rest.CreateGuildCommand(appID, guildID, cmd)
-			if err != nil {
-				slog.Error("failed to register slash command", slog.Any("err", err))
-				continue
-			}
-			slog.Info("registered slash command", slog.String("name", c.Name()), slog.String("id", c.ID().String()), slog.String("guild_id", guildID.String()))
+		if _, err := event.Client().Rest.SetGuildCommands(appID, guildID, cmds); err != nil {
+			slog.Error("failed to register guild commands", slog.Any("err", err))
+		} else {
+			slog.Info("registered guild commands", slog.Int("count", len(cmds)), slog.String("guild_id", guildID.String()))
 		}
 	})
 }
