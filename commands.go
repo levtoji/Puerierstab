@@ -14,11 +14,12 @@ import (
 
 var registerOnce sync.Once
 
-func registerCommandsOnReady(event *events.Ready) {
+func registerCommandsOnReady(event *events.GuildReady) {
 	registerOnce.Do(func() {
 		perms := discord.Permissions(discord.PermissionAdministrator)
-		cmd, err := event.Client().Rest.CreateGlobalCommand(
+		cmd, err := event.Client().Rest.CreateGuildCommand(
 			event.Client().ApplicationID,
+			event.GuildID,
 			discord.SlashCommandCreate{
 				Name:                     "clear-chat",
 				Description:              "Löscht alle Nachrichten in diesem Kanal",
@@ -26,10 +27,10 @@ func registerCommandsOnReady(event *events.Ready) {
 			},
 		)
 		if err != nil {
-			slog.Error("failed to register clear-chat command — bot needs applications.commands scope", slog.Any("err", err))
+			slog.Error("failed to register clear-chat command", slog.Any("err", err))
 			return
 		}
-		slog.Info("registered slash command", slog.String("name", cmd.Name()), slog.String("id", cmd.ID().String()))
+		slog.Info("registered slash command", slog.String("name", cmd.Name()), slog.String("id", cmd.ID().String()), slog.String("guild_id", event.GuildID.String()))
 	})
 }
 
