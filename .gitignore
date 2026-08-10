@@ -33,3 +33,6 @@ go.work.sum
 
 # Local build output
 Puerierstab
+
+# Message store (runtime-generated)
+.role_messages.json

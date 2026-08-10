@@ -143,10 +143,12 @@ func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
 		}
 		chunk := category.Roles[start:end]
 
-		embed := discord.NewEmbedBuilder().
-			WithTitle(category.Emoji + " " + category.Name).
-			WithDescription(category.Description).
-			WithColor(0x5865F2)
+		embed := discord.Embed{
+			Title:       category.Emoji + " " + category.Name,
+			Description: category.Description,
+			Color:       0x5865F2,
+			Fields:      []discord.EmbedField{},
+		}
 
 		// Add role fields to embed
 		for _, role := range chunk {
@@ -154,11 +156,14 @@ func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
 			if fieldValue == "" {
 				fieldValue = "Keine Beschreibung"
 			}
-			embed = embed.AddField(role.Label, fieldValue, false)
+			embed.Fields = append(embed.Fields, discord.EmbedField{
+				Name:  role.Label,
+				Value: fieldValue,
+			})
 		}
 
 		message := discord.NewMessageCreate().
-			WithEmbeds(embed.Build()).
+			WithEmbeds(embed).
 			WithAllowedMentions(&discord.AllowedMentions{
 				Parse: []discord.AllowedMentionType{},
 				Roles: []snowflake.ID{},
