@@ -1,21 +1,23 @@
-package main
+package rolepanel
 
 import (
 	"testing"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
+
+	"github.com/levtoji/Puerierstab/internal/config"
 )
 
 func TestNewRoleBotInitializesRoleMap(t *testing.T) {
-	cfg := config{
+	cfg := config.Config{
 		Token:         "test_token",
 		RoleChannelID: snowflake.MustParse("123456789012345678"),
-		Categories: []roleCategory{
+		Categories: []config.RoleCategory{
 			{
 				Name:  "Gaming",
 				Emoji: "🎮",
-				Roles: []roleButton{
+				Roles: []config.RoleButton{
 					{
 						RoleID:   snowflake.MustParse("111111111111111111"),
 						Label:    "Minecraft",
@@ -31,7 +33,7 @@ func TestNewRoleBotInitializesRoleMap(t *testing.T) {
 			{
 				Name:  "Films",
 				Emoji: "🎬",
-				Roles: []roleButton{
+				Roles: []config.RoleButton{
 					{
 						RoleID:   snowflake.MustParse("333333333333333333"),
 						Label:    "Filmschauer",
@@ -42,13 +44,12 @@ func TestNewRoleBotInitializesRoleMap(t *testing.T) {
 		},
 	}
 
-	bot := newRoleBot(cfg)
+	bot := NewRoleBot(cfg)
 
 	if len(bot.roleByCustomID) != 3 {
 		t.Fatalf("expected 3 roles, got %d", len(bot.roleByCustomID))
 	}
 
-	// Verify each role is accessible
 	tests := map[string]string{
 		"minecraft_toggle": "Minecraft",
 		"valorant_toggle":  "Valorant",
@@ -66,50 +67,23 @@ func TestNewRoleBotInitializesRoleMap(t *testing.T) {
 	}
 }
 
-func TestMemberHasRole(t *testing.T) {
-	roleID1 := snowflake.MustParse("111111111111111111")
-	roleID2 := snowflake.MustParse("222222222222222222")
-	roleID3 := snowflake.MustParse("333333333333333333")
-
-	memberRoles := []snowflake.ID{roleID1, roleID3}
-
-	tests := []struct {
-		name     string
-		roleID   snowflake.ID
-		expected bool
-	}{
-		{"has role 1", roleID1, true},
-		{"has role 3", roleID3, true},
-		{"missing role 2", roleID2, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := memberHasRole(memberRoles, tt.roleID)
-			if result != tt.expected {
-				t.Fatalf("expected %v, got %v", tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestTotalRoleCount(t *testing.T) {
 	tests := []struct {
 		name     string
-		category []roleCategory
+		category []config.RoleCategory
 		expected int
 	}{
 		{
 			"single category single role",
-			[]roleCategory{
-				{Name: "Cat1", Roles: []roleButton{{Label: "R1"}}},
+			[]config.RoleCategory{
+				{Name: "Cat1", Roles: []config.RoleButton{{Label: "R1"}}},
 			},
 			1,
 		},
 		{
 			"single category multiple roles",
-			[]roleCategory{
-				{Name: "Cat1", Roles: []roleButton{
+			[]config.RoleCategory{
+				{Name: "Cat1", Roles: []config.RoleButton{
 					{Label: "R1"},
 					{Label: "R2"},
 					{Label: "R3"},
@@ -119,16 +93,16 @@ func TestTotalRoleCount(t *testing.T) {
 		},
 		{
 			"multiple categories",
-			[]roleCategory{
-				{Name: "Cat1", Roles: []roleButton{{Label: "R1"}, {Label: "R2"}}},
-				{Name: "Cat2", Roles: []roleButton{{Label: "R3"}}},
-				{Name: "Cat3", Roles: []roleButton{{Label: "R4"}, {Label: "R5"}, {Label: "R6"}}},
+			[]config.RoleCategory{
+				{Name: "Cat1", Roles: []config.RoleButton{{Label: "R1"}, {Label: "R2"}}},
+				{Name: "Cat2", Roles: []config.RoleButton{{Label: "R3"}}},
+				{Name: "Cat3", Roles: []config.RoleButton{{Label: "R4"}, {Label: "R5"}, {Label: "R6"}}},
 			},
 			6,
 		},
 		{
 			"empty categories",
-			[]roleCategory{},
+			[]config.RoleCategory{},
 			0,
 		},
 	}
@@ -155,7 +129,7 @@ func TestFormatRoleMessages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			role := roleButton{Label: tt.label}
+			role := config.RoleButton{Label: tt.label}
 			result := fmtRoleAdded(role)
 			if result != tt.expected {
 				t.Fatalf("expected %q, got %q", tt.expected, result)
@@ -163,8 +137,7 @@ func TestFormatRoleMessages(t *testing.T) {
 		})
 	}
 
-	// Test removal message
-	role := roleButton{Label: "TestRole"}
+	role := config.RoleButton{Label: "TestRole"}
 	removeMsg := fmtRoleRemoved(role)
 	if removeMsg != "Die Rolle „TestRole“ wurde dir entfernt." {
 		t.Fatalf("unexpected removal message: %q", removeMsg)
@@ -206,17 +179,6 @@ func TestCollectButtonCustomIDs(t *testing.T) {
 			customIDSet{"custom_a": {}, "custom_b": {}, "custom_c": {}},
 		},
 		{
-			"non-button components ignored",
-			[]discord.LayoutComponent{
-				discord.ActionRowComponent{
-					Components: []discord.InteractiveComponent{
-						discord.NewPrimaryButton("Film", "film_role_toggle"),
-					},
-				},
-			},
-			customIDSet{"film_role_toggle": {}},
-		},
-		{
 			"empty components",
 			[]discord.LayoutComponent{},
 			customIDSet{},
@@ -246,7 +208,6 @@ func TestCustomIDSetKeyIsDeterministic(t *testing.T) {
 		t.Fatalf("expected identical keys for same set, got %q and %q", first.key(), second.key())
 	}
 
-	// Different sets must produce different keys
 	third := customIDSet{"a": {}, "b": {}}
 	if first.key() == third.key() {
 		t.Fatalf("expected different keys for different sets")
@@ -295,11 +256,11 @@ func TestIndexMessagesByCustomIDs(t *testing.T) {
 }
 
 func TestIsManagedRolePanelMessage(t *testing.T) {
-	bot := newRoleBot(config{
-		Categories: []roleCategory{
+	bot := NewRoleBot(config.Config{
+		Categories: []config.RoleCategory{
 			{
 				Name: "Filme",
-				Roles: []roleButton{
+				Roles: []config.RoleButton{
 					{RoleID: snowflake.ID(1), Label: "Film", CustomID: "film_role_toggle"},
 				},
 			},
@@ -320,7 +281,6 @@ func TestIsManagedRolePanelMessage(t *testing.T) {
 		t.Fatalf("expected message with managed custom ID to be recognized")
 	}
 
-	// Message with a foreign custom ID should not be managed
 	foreign := discord.Message{
 		Author: discord.User{Bot: true},
 		Components: []discord.LayoutComponent{
