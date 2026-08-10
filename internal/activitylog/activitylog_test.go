@@ -31,8 +31,8 @@ func TestJoinEmbed(t *testing.T) {
 	member := effectiveName("Alice")
 	embed := joinEmbed(member)
 
-	if embed.Title != "**Alice** ist beigetreten" {
-		t.Fatalf("expected title %q, got %q", "**Alice** ist beigetreten", embed.Title)
+	if embed.Title != "**Alice** ist dem Server beigetreten" {
+		t.Fatalf("expected title %q, got %q", "**Alice** ist dem Server beigetreten", embed.Title)
 	}
 	if embed.Color != 0x57F287 {
 		t.Fatalf("expected color 0x57F287, got 0x%X", embed.Color)
@@ -55,7 +55,7 @@ func TestNickChangeEmbed(t *testing.T) {
 	member := effectiveName("NewName")
 	embed := nickChangeEmbed(member, "OldName", "NewName")
 
-	if embed.Title != "**NewName**: OldName → NewName" {
+	if embed.Title != "**NewName** hat den Nicknamen von **OldName** zu **NewName** geändert" {
 		t.Fatalf("expected nick change title, got %q", embed.Title)
 	}
 	if embed.Color != 0x95A5A6 {
@@ -67,7 +67,7 @@ func TestRoleAddedEmbed(t *testing.T) {
 	member := effectiveName("Charlie")
 	embed := roleAddedEmbed(member, "Trucker")
 
-	if embed.Title != "**Charlie** + Trucker" {
+	if embed.Title != "**Charlie** hat die Rolle **Trucker** erhalten" {
 		t.Fatalf("expected role added title, got %q", embed.Title)
 	}
 	if embed.Color != 0x5865F2 {
@@ -79,7 +79,7 @@ func TestRoleRemovedEmbed(t *testing.T) {
 	member := effectiveName("Diana")
 	embed := roleRemovedEmbed(member, "Filmschauer")
 
-	if embed.Title != "**Diana** − Filmschauer" {
+	if embed.Title != "**Diana** hat die Rolle **Filmschauer** verloren" {
 		t.Fatalf("expected role removed title, got %q", embed.Title)
 	}
 	if embed.Color != 0xE67E22 {
@@ -91,7 +91,7 @@ func TestVoiceJoinEmbed(t *testing.T) {
 	member := effectiveName("Eve")
 	embed := voiceJoinEmbed(member, "Allgemein")
 
-	if embed.Title != "**Eve** → #Allgemein" {
+	if embed.Title != "**Eve** hat den Voice-Channel **#Allgemein** betreten" {
 		t.Fatalf("expected voice join title, got %q", embed.Title)
 	}
 	if embed.Color != 0x3498DB {
@@ -103,7 +103,7 @@ func TestVoiceLeaveEmbed(t *testing.T) {
 	member := effectiveName("Frank")
 	embed := voiceLeaveEmbed(member, "Gaming")
 
-	if embed.Title != "**Frank** ← #Gaming" {
+	if embed.Title != "**Frank** hat den Voice-Channel **#Gaming** verlassen" {
 		t.Fatalf("expected voice leave title, got %q", embed.Title)
 	}
 	if embed.Color != 0x3498DB {
@@ -115,7 +115,7 @@ func TestVoiceMoveEmbed(t *testing.T) {
 	member := effectiveName("Grace")
 	embed := voiceMoveEmbed(member, "Allgemein", "Gaming")
 
-	if embed.Title != "**Grace**: #Allgemein → #Gaming" {
+	if embed.Title != "**Grace** ist von **#Allgemein** nach **#Gaming** gewechselt" {
 		t.Fatalf("expected voice move title, got %q", embed.Title)
 	}
 	if embed.Color != 0x3498DB {

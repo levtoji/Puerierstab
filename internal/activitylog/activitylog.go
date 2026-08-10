@@ -22,7 +22,7 @@ func New(channelID snowflake.ID) *ActivityLog {
 
 func joinEmbed(member discord.Member) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** ist beigetreten", memberName(member)),
+		Title: fmt.Sprintf("**%s** ist dem Server beigetreten", memberName(member)),
 		Color: 0x57F287,
 	}
 }
@@ -36,42 +36,42 @@ func leaveEmbed(member discord.Member) discord.Embed {
 
 func nickChangeEmbed(member discord.Member, oldName, newName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s**: %s → %s", memberName(member), oldName, newName),
+		Title: fmt.Sprintf("**%s** hat den Nicknamen von **%s** zu **%s** geändert", memberName(member), oldName, newName),
 		Color: 0x95A5A6,
 	}
 }
 
 func roleAddedEmbed(member discord.Member, roleName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** + %s", memberName(member), roleName),
+		Title: fmt.Sprintf("**%s** hat die Rolle **%s** erhalten", memberName(member), roleName),
 		Color: 0x5865F2,
 	}
 }
 
 func roleRemovedEmbed(member discord.Member, roleName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** − %s", memberName(member), roleName),
+		Title: fmt.Sprintf("**%s** hat die Rolle **%s** verloren", memberName(member), roleName),
 		Color: 0xE67E22,
 	}
 }
 
 func voiceJoinEmbed(member discord.Member, channelName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** → #%s", memberName(member), channelName),
+		Title: fmt.Sprintf("**%s** hat den Voice-Channel **#%s** betreten", memberName(member), channelName),
 		Color: 0x3498DB,
 	}
 }
 
 func voiceLeaveEmbed(member discord.Member, channelName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** ← #%s", memberName(member), channelName),
+		Title: fmt.Sprintf("**%s** hat den Voice-Channel **#%s** verlassen", memberName(member), channelName),
 		Color: 0x3498DB,
 	}
 }
 
 func voiceMoveEmbed(member discord.Member, fromChannel, toChannel string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s**: #%s → #%s", memberName(member), fromChannel, toChannel),
+		Title: fmt.Sprintf("**%s** ist von **#%s** nach **#%s** gewechselt", memberName(member), fromChannel, toChannel),
 		Color: 0x3498DB,
 	}
 }
