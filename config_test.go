@@ -135,3 +135,128 @@ func TestRoleButtonComponentUsesRequestedStyle(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeCategoriesValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []roleCategoryJSON
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			"empty categories",
+			[]roleCategoryJSON{},
+			true,
+			"at least one role category is required",
+		},
+		{
+			"category without name",
+			[]roleCategoryJSON{
+				{Description: "Test", Roles: []roleButtonJSON{{Label: "R1", RoleID: jsonSnowflake(1)}}},
+			},
+			true,
+			"name is required",
+		},
+		{
+			"category without roles",
+			[]roleCategoryJSON{
+				{Name: "Gaming", Description: "Test", Roles: []roleButtonJSON{}},
+			},
+			true,
+			"at least one role is required",
+		},
+		{
+			"role without label",
+			[]roleCategoryJSON{
+				{Name: "Gaming", Roles: []roleButtonJSON{{RoleID: jsonSnowflake(1)}}},
+			},
+			true,
+			"label is required",
+		},
+		{
+			"duplicate custom_id",
+			[]roleCategoryJSON{
+				{
+					Name: "Gaming",
+					Roles: []roleButtonJSON{
+						{Label: "R1", RoleID: jsonSnowflake(1), CustomID: "same_id"},
+						{Label: "R2", RoleID: jsonSnowflake(2), CustomID: "same_id"},
+					},
+				},
+			},
+			true,
+			"duplicate custom_id",
+		},
+		{
+			"valid single role",
+			[]roleCategoryJSON{
+				{Name: "Gaming", Emoji: "🎮", Roles: []roleButtonJSON{{Label: "R1", RoleID: jsonSnowflake(1)}}},
+			},
+			false,
+			"",
+		},
+		{
+			"valid multiple categories",
+			[]roleCategoryJSON{
+				{Name: "Cat1", Emoji: "🎮", Roles: []roleButtonJSON{{Label: "R1", RoleID: jsonSnowflake(1)}}},
+				{Name: "Cat2", Emoji: "🎬", Roles: []roleButtonJSON{{Label: "R2", RoleID: jsonSnowflake(2)}}},
+			},
+			false,
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := normalizeCategories(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Fatalf("expected error containing %q, got %q", tt.errMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if result == nil {
+					t.Fatalf("expected categories, got nil")
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizeCategoriesAutoGenerateCustomID(t *testing.T) {
+	input := []roleCategoryJSON{
+		{
+			Name:  "Gaming",
+			Emoji: "🎮",
+			Roles: []roleButtonJSON{
+				{Label: "R1", RoleID: jsonSnowflake(111)},
+				{Label: "R2", RoleID: jsonSnowflake(222), CustomID: "custom_r2"},
+			},
+		},
+	}
+
+	result, err := normalizeCategories(input)
+	if err != nil {
+		t.Fatalf("normalizeCategories() error = %v", err)
+	}
+
+	roles := result[0].Roles
+	if len(roles) != 2 {
+		t.Fatalf("expected 2 roles, got %d", len(roles))
+	}
+
+	// First role should have auto-generated custom ID
+	if !strings.Contains(roles[0].CustomID, "111") {
+		t.Fatalf("expected auto-generated custom_id to contain role ID 111, got %q", roles[0].CustomID)
+	}
+
+	// Second role should use provided custom ID
+	if roles[1].CustomID != "custom_r2" {
+		t.Fatalf("expected custom_r2, got %q", roles[1].CustomID)
+	}
+}
