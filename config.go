@@ -159,19 +159,24 @@ func buildCategoryMessages(category roleCategory) []discord.MessageCreate {
 		if end > len(category.Roles) {
 			end = len(category.Roles)
 		}
+		chunk := category.Roles[start:end]
 
 		message := discord.NewMessageCreate().
-			WithContent(categoryMessageContent(category, start > 0, category.Roles[start:end])).
-			WithAllowedMentions(&discord.AllowedMentions{})
+			WithContent(categoryMessageContent(category, start > 0, chunk)).
+			WithAllowedMentions(&discord.AllowedMentions{
+				Parse: []discord.AllowedMentionType{},
+				Roles: []snowflake.ID{},
+				Users: []snowflake.ID{},
+			})
 
-		for rowStart := start; rowStart < end; rowStart += maxButtonsPerRow {
+		for rowStart := 0; rowStart < len(chunk); rowStart += maxButtonsPerRow {
 			rowEnd := rowStart + maxButtonsPerRow
-			if rowEnd > end {
-				rowEnd = end
+			if rowEnd > len(chunk) {
+				rowEnd = len(chunk)
 			}
 
 			buttons := make([]discord.InteractiveComponent, 0, rowEnd-rowStart)
-			for _, role := range category.Roles[rowStart:rowEnd] {
+			for _, role := range chunk[rowStart:rowEnd] {
 				buttons = append(buttons, role.component())
 			}
 			message = message.AddActionRow(buttons...)
@@ -199,9 +204,9 @@ func categoryMessageContent(category roleCategory, continuation bool, roles []ro
 	for _, role := range roles {
 		content.WriteString("- **")
 		content.WriteString(role.Label)
-		content.WriteString("** (`")
+		content.WriteString("** (<@&")
 		content.WriteString(role.RoleID.String())
-		content.WriteString("`)")
+		content.WriteString(">)")
 		if role.Description != "" {
 			content.WriteString(": ")
 			content.WriteString(role.Description)

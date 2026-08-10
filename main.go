@@ -72,7 +72,7 @@ func run() error {
 
 	slog.Info("role bot is running", slog.String("version", disgo.Version), slog.String("role_channel_id", cfg.RoleChannelID.String()))
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	<-ctx.Done()
 	return nil
@@ -89,6 +89,10 @@ func (b *roleBot) onReady(event *events.Ready) {
 }
 
 func (b *roleBot) publishRolePanels(client *bot.Client) error {
+	if err := b.deleteManagedRolePanels(client); err != nil {
+		return err
+	}
+
 	for _, category := range b.config.Categories {
 		for _, message := range buildCategoryMessages(category) {
 			if _, err := client.Rest.CreateMessage(b.config.RoleChannelID, message); err != nil {
@@ -97,6 +101,59 @@ func (b *roleBot) publishRolePanels(client *bot.Client) error {
 		}
 	}
 	return nil
+}
+
+func (b *roleBot) deleteManagedRolePanels(client *bot.Client) error {
+	var before snowflake.ID
+	for {
+		messages, err := b.getRoleChannelMessages(client, before)
+		if err != nil {
+			return err
+		}
+		if len(messages) == 0 {
+			return nil
+		}
+
+		for _, message := range messages {
+			if !message.Author.Bot || !b.isManagedRolePanelMessage(message) {
+				continue
+			}
+			if err := client.Rest.DeleteMessage(b.config.RoleChannelID, message.ID); err != nil {
+				return err
+			}
+		}
+
+		before = messages[len(messages)-1].ID
+		if len(messages) < 100 {
+			return nil
+		}
+	}
+}
+
+func (b *roleBot) getRoleChannelMessages(client *bot.Client, before snowflake.ID) ([]discord.Message, error) {
+	if before == 0 {
+		return client.Rest.GetMessages(b.config.RoleChannelID, 0, 0, 0, 100)
+	}
+	return client.Rest.GetMessages(b.config.RoleChannelID, 0, before, 0, 100)
+}
+
+func (b *roleBot) isManagedRolePanelMessage(message discord.Message) bool {
+	for _, layout := range message.Components {
+		row, ok := layout.(discord.ActionRowComponent)
+		if !ok {
+			continue
+		}
+		for _, component := range row.Components {
+			button, ok := component.(discord.ButtonComponent)
+			if !ok {
+				continue
+			}
+			if _, managed := b.roleByCustomID[button.CustomID]; managed {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (b *roleBot) onComponentInteraction(event *events.ComponentInteractionCreate) {

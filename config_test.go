@@ -85,11 +85,41 @@ func TestBuildCategoryMessagesChunksButtonsIntoMultipleMessages(t *testing.T) {
 	if !strings.Contains(messages[1].Content, "Fortsetzung") {
 		t.Fatalf("expected continuation marker in second message content, got %q", messages[1].Content)
 	}
+	if !strings.Contains(messages[0].Content, "<@&1000>") {
+		t.Fatalf("expected role mention in content, got %q", messages[0].Content)
+	}
 }
 
 func TestRoleButtonComponentUsesRequestedStyle(t *testing.T) {
 	button := roleButton{Label: "Film", CustomID: legacyFilmCustomID, Style: "danger"}.component()
 	if button.Style != discord.ButtonStyleDanger {
 		t.Fatalf("expected danger style, got %v", button.Style)
+	}
+}
+
+func TestIsManagedRolePanelMessage(t *testing.T) {
+	bot := newRoleBot(config{
+		Categories: []roleCategory{
+			{
+				Name: "Filme",
+				Roles: []roleButton{
+					{RoleID: snowflake.ID(1), Label: "Film", CustomID: legacyFilmCustomID},
+				},
+			},
+		},
+	})
+
+	message := discord.Message{
+		Components: []discord.LayoutComponent{
+			discord.ActionRowComponent{
+				Components: []discord.InteractiveComponent{
+					discord.NewPrimaryButton("Film", legacyFilmCustomID),
+				},
+			},
+		},
+	}
+
+	if !bot.isManagedRolePanelMessage(message) {
+		t.Fatalf("expected message to be recognized as managed role panel")
 	}
 }
