@@ -3,6 +3,8 @@ package activitylog
 import (
 	"fmt"
 	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
@@ -11,11 +13,16 @@ import (
 )
 
 type ActivityLog struct {
-	channelID snowflake.ID
+	channelID        snowflake.ID
+	lastVoiceEvent   map[snowflake.ID]time.Time
+	lastVoiceEventMu sync.Mutex
 }
 
 func New(channelID snowflake.ID) *ActivityLog {
-	return &ActivityLog{channelID: channelID}
+	return &ActivityLog{
+		channelID:      channelID,
+		lastVoiceEvent: make(map[snowflake.ID]time.Time),
+	}
 }
 
 // ---- Embed builders ----
@@ -85,6 +92,9 @@ func memberName(member discord.Member) string {
 func nickDiff(oldMember, newMember discord.Member) (oldName, newName string, changed bool) {
 	oldName = oldMember.EffectiveName()
 	newName = newMember.EffectiveName()
+	if oldName == "" {
+		return oldName, newName, false
+	}
 	return oldName, newName, oldName != newName
 }
 
@@ -152,6 +162,17 @@ func (l *ActivityLog) post(client *bot.Client, embed discord.Embed) {
 
 // ---- Event handlers ----
 
+func (l *ActivityLog) rateLimitVoice(userID snowflake.ID) bool {
+	l.lastVoiceEventMu.Lock()
+	defer l.lastVoiceEventMu.Unlock()
+	now := time.Now()
+	if last, ok := l.lastVoiceEvent[userID]; ok && now.Sub(last) < 5*time.Second {
+		return false
+	}
+	l.lastVoiceEvent[userID] = now
+	return true
+}
+
 func (l *ActivityLog) OnGuildMemberJoin(event *events.GuildMemberJoin) {
 	l.post(event.Client(), joinEmbed(event.Member))
 }
@@ -176,7 +197,7 @@ func (l *ActivityLog) OnGuildMemberUpdate(event *events.GuildMemberUpdate) {
 }
 
 func (l *ActivityLog) OnGuildVoiceJoin(event *events.GuildVoiceJoin) {
-	if event.VoiceState.ChannelID == nil {
+	if event.VoiceState.ChannelID == nil || !l.rateLimitVoice(event.Member.User.ID) {
 		return
 	}
 	l.post(event.Client(), voiceJoinEmbed(event.Member, l.channelName(event.Client(), *event.VoiceState.ChannelID)))
@@ -185,7 +206,7 @@ func (l *ActivityLog) OnGuildVoiceJoin(event *events.GuildVoiceJoin) {
 func (l *ActivityLog) OnGuildVoiceMove(event *events.GuildVoiceMove) {
 	from := event.OldVoiceState.ChannelID
 	to := event.VoiceState.ChannelID
-	if from == nil || to == nil {
+	if from == nil || to == nil || !l.rateLimitVoice(event.Member.User.ID) {
 		return
 	}
 	l.post(event.Client(), voiceMoveEmbed(event.Member, l.channelName(event.Client(), *from), l.channelName(event.Client(), *to)))
@@ -193,7 +214,7 @@ func (l *ActivityLog) OnGuildVoiceMove(event *events.GuildVoiceMove) {
 
 func (l *ActivityLog) OnGuildVoiceLeave(event *events.GuildVoiceLeave) {
 	from := event.OldVoiceState.ChannelID
-	if from == nil {
+	if from == nil || !l.rateLimitVoice(event.Member.User.ID) {
 		return
 	}
 	l.post(event.Client(), voiceLeaveEmbed(event.Member, l.channelName(event.Client(), *from)))
