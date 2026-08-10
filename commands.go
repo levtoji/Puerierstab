@@ -11,6 +11,7 @@ import (
 	"github.com/disgoorg/omit"
 	"github.com/disgoorg/snowflake/v2"
 
+	"github.com/levtoji/Puerierstab/internal/channelnamer"
 	"github.com/levtoji/Puerierstab/internal/icebreaker"
 	"github.com/levtoji/Puerierstab/internal/poll"
 )
@@ -20,9 +21,10 @@ var (
 	registeredGuildsMu sync.Mutex
 	pollStore          *poll.Store
 	icebreakerHandler  *icebreaker.Handler
+	channelNamer       *channelnamer.Namer
 )
 
-var knownCommands = []string{"clear-chat", "poll", "question"}
+var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels"}
 
 func registerCommandsOnReady(event *events.GuildReady) {
 	appID := event.Client().ApplicationID
@@ -76,6 +78,11 @@ func registerCommandsOnReady(event *events.GuildReady) {
 				Name:        "question",
 				Description: "Postet eine zufällige Diskussionsfrage",
 			},
+			discord.SlashCommandCreate{
+				Name:                     "rename-channels",
+				Description:              "Benennt alle Voice-Channel sofort um (Admin)",
+				DefaultMemberPermissions: omit.NewPtr(adminPerms),
+			},
 		}
 
 	if _, err := event.Client().Rest.SetGuildCommands(appID, guildID, cmds); err != nil {
@@ -94,6 +101,8 @@ func handleSlashCommand(event *events.ApplicationCommandInteractionCreate) {
 		pollStore.HandleCreate(event)
 	case "question":
 		icebreakerHandler.OnCommand(event)
+	case "rename-channels":
+		handleRenameChannels(event)
 	}
 }
 
@@ -158,6 +167,21 @@ func handleClearChat(event *events.ApplicationCommandInteractionCreate) {
 	} else {
 		respond(event, fmt.Sprintf("%d Nachrichten gelöscht", totalDeleted))
 	}
+}
+
+func handleRenameChannels(event *events.ApplicationCommandInteractionCreate) {
+	if channelNamer == nil {
+		_ = event.CreateMessage(discord.NewMessageCreate().
+			WithContent("Channel-Umbenennung ist nicht konfiguriert (RENAME_CHANNEL_IDS fehlt).").
+			WithEphemeral(true))
+		return
+	}
+
+	_ = event.CreateMessage(discord.NewMessageCreate().
+		WithContent("Voice-Channel werden umbenannt...").
+		WithEphemeral(true))
+
+	go channelNamer.RenameAll(event.Client())
 }
 
 func respond(event *events.ApplicationCommandInteractionCreate, content string) {

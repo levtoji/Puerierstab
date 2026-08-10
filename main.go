@@ -50,6 +50,7 @@ func run() error {
 		BaseURL:      cfg.AIBaseURL,
 		LogChannelID: cfg.ActivityLogChannelID,
 	})
+	channelNamer = namer
 
 	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers}
 	listeners := []bot.ConfigOpt{

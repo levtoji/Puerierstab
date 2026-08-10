@@ -75,6 +75,10 @@ func nextSchedule() time.Duration {
 	return next.Sub(now)
 }
 
+func (n *Namer) RenameAll(client *bot.Client) {
+	n.renameAll(client)
+}
+
 func (n *Namer) renameAll(client *bot.Client) {
 	names, err := n.generateNames(n.recent)
 	if err != nil {
