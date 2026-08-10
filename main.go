@@ -39,6 +39,8 @@ func newRoleBot(cfg config) *roleBot {
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	if err := run(); err != nil {
 		slog.Error("bot stopped", slog.Any("err", err))
 		os.Exit(1)
