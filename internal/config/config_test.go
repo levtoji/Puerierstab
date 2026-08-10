@@ -283,3 +283,48 @@ func TestNormalizeCategoriesAutoGenerateCustomID(t *testing.T) {
 		t.Fatalf("expected custom_r2, got %q", roles[1].CustomID)
 	}
 }
+
+func TestLoadActivityLogChannelIDSet(t *testing.T) {
+	t.Setenv("DISCORD_BOT_TOKEN", "token")
+	t.Setenv(roleChannelEnv, "123456789012345678")
+	t.Setenv(roleConfigEnv, `[{"name":"Test","emoji":"🎮","roles":[{"label":"R1","role_id":"1"}]}]`)
+	t.Setenv("ACTIVITY_LOG_CHANNEL_ID", "1536346100909473792")
+
+	cfg, err := LoadConfigFromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := snowflake.MustParse("1536346100909473792")
+	if cfg.ActivityLogChannelID != want {
+		t.Fatalf("expected ActivityLogChannelID %s, got %s", want, cfg.ActivityLogChannelID)
+	}
+}
+
+func TestLoadActivityLogChannelIDUnset(t *testing.T) {
+	t.Setenv("DISCORD_BOT_TOKEN", "token")
+	t.Setenv(roleChannelEnv, "123456789012345678")
+	t.Setenv(roleConfigEnv, `[{"name":"Test","emoji":"🎮","roles":[{"label":"R1","role_id":"1"}]}]`)
+
+	cfg, err := LoadConfigFromEnv()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ActivityLogChannelID != 0 {
+		t.Fatalf("expected ActivityLogChannelID 0 (unset), got %s", cfg.ActivityLogChannelID)
+	}
+}
+
+func TestLoadActivityLogChannelIDInvalid(t *testing.T) {
+	t.Setenv("DISCORD_BOT_TOKEN", "token")
+	t.Setenv(roleChannelEnv, "123456789012345678")
+	t.Setenv(roleConfigEnv, `[{"name":"Test","emoji":"🎮","roles":[{"label":"R1","role_id":"1"}]}]`)
+	t.Setenv("ACTIVITY_LOG_CHANNEL_ID", "not_a_number")
+
+	_, err := LoadConfigFromEnv()
+	if err == nil {
+		t.Fatalf("expected error for invalid ACTIVITY_LOG_CHANNEL_ID, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid snowflake") {
+		t.Fatalf("expected error to mention invalid snowflake, got %q", err.Error())
+	}
+}

@@ -13,16 +13,18 @@ import (
 )
 
 const (
-	roleConfigEnv     = "ROLE_CATEGORIES_JSON"
-	roleChannelEnv    = "ROLE_CHANNEL_ID"
-	maxButtonsPerRow  = 5
-	maxRowsPerMessage = 5
+	roleConfigEnv         = "ROLE_CATEGORIES_JSON"
+	roleChannelEnv        = "ROLE_CHANNEL_ID"
+	activityLogChannelEnv = "ACTIVITY_LOG_CHANNEL_ID"
+	maxButtonsPerRow      = 5
+	maxRowsPerMessage     = 5
 )
 
 type Config struct {
-	Token         string
-	RoleChannelID snowflake.ID
-	Categories    []RoleCategory
+	Token               string
+	RoleChannelID       snowflake.ID
+	ActivityLogChannelID snowflake.ID
+	Categories          []RoleCategory
 }
 
 type RoleCategory struct {
@@ -56,10 +58,16 @@ func LoadConfigFromEnv() (Config, error) {
 		return Config{}, err
 	}
 
+	activityLogChannelID, err := parseOptionalSnowflakeEnv(activityLogChannelEnv)
+	if err != nil {
+		return Config{}, fmt.Errorf("%s: %w", activityLogChannelEnv, err)
+	}
+
 	return Config{
-		Token:         token,
-		RoleChannelID: roleChannelID,
-		Categories:    categories,
+		Token:               token,
+		RoleChannelID:       roleChannelID,
+		ActivityLogChannelID: activityLogChannelID,
+		Categories:          categories,
 	}, nil
 }
 
@@ -217,6 +225,14 @@ func firstEnv(keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func parseOptionalSnowflakeEnv(key string) (snowflake.ID, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return 0, nil
+	}
+	return parseSnowflake(value)
 }
 
 func parseSnowflakeEnv(key string) (snowflake.ID, error) {
