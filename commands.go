@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	registerOnce       sync.Once
+	registeredGuilds   = map[snowflake.ID]struct{}{}
+	registeredGuildsMu sync.Mutex
 	pollStore          *poll.Store
 	icebreakerHandler  *icebreaker.Handler
 )
@@ -24,26 +25,33 @@ var (
 var knownCommands = []string{"clear-chat", "poll", "question"}
 
 func registerCommandsOnReady(event *events.GuildReady) {
-	registerOnce.Do(func() {
-		appID := event.Client().ApplicationID
-		guildID := event.GuildID
+	appID := event.Client().ApplicationID
+	guildID := event.GuildID
 
-		if existing, err := event.Client().Rest.GetGlobalCommands(appID, false); err == nil {
-			for _, cmd := range existing {
-				for _, name := range knownCommands {
-					if cmd.Name() == name {
-						if err := event.Client().Rest.DeleteGlobalCommand(appID, cmd.ID()); err != nil {
-							slog.Warn("failed to delete stale global command", slog.String("id", cmd.ID().String()), slog.Any("err", err))
-						}
-						break
+	registeredGuildsMu.Lock()
+	if _, ok := registeredGuilds[guildID]; ok {
+		registeredGuildsMu.Unlock()
+		return
+	}
+	registeredGuilds[guildID] = struct{}{}
+	registeredGuildsMu.Unlock()
+
+	if existing, err := event.Client().Rest.GetGlobalCommands(appID, false); err == nil {
+		for _, cmd := range existing {
+			for _, name := range knownCommands {
+				if cmd.Name() == name {
+					if err := event.Client().Rest.DeleteGlobalCommand(appID, cmd.ID()); err != nil {
+						slog.Warn("failed to delete stale global command", slog.String("id", cmd.ID().String()), slog.Any("err", err))
 					}
+					break
 				}
 			}
 		}
+	}
 
-		adminPerms := discord.Permissions(discord.PermissionAdministrator)
-		cmds := []discord.ApplicationCommandCreate{
-			discord.SlashCommandCreate{
+	adminPerms := discord.Permissions(discord.PermissionAdministrator)
+	cmds := []discord.ApplicationCommandCreate{
+		discord.SlashCommandCreate{
 				Name:                     "clear-chat",
 				Description:              "Löscht alle Nachrichten in diesem Kanal",
 				DefaultMemberPermissions: omit.NewPtr(adminPerms),
@@ -70,12 +78,11 @@ func registerCommandsOnReady(event *events.GuildReady) {
 			},
 		}
 
-		if _, err := event.Client().Rest.SetGuildCommands(appID, guildID, cmds); err != nil {
-			slog.Error("failed to register guild commands", slog.Any("err", err))
-		} else {
-			slog.Info("registered guild commands", slog.Int("count", len(cmds)), slog.String("guild_id", guildID.String()))
-		}
-	})
+	if _, err := event.Client().Rest.SetGuildCommands(appID, guildID, cmds); err != nil {
+		slog.Error("failed to register guild commands", slog.Any("err", err))
+	} else {
+		slog.Info("registered guild commands", slog.Int("count", len(cmds)), slog.String("guild_id", guildID.String()))
+	}
 }
 
 func handleSlashCommand(event *events.ApplicationCommandInteractionCreate) {
@@ -99,9 +106,10 @@ func handleClearChat(event *events.ApplicationCommandInteractionCreate) {
 	channelID := event.Channel().ID()
 	cutoff := time.Now().Add(-14 * 24 * time.Hour)
 	var totalDeleted int
+	var before snowflake.ID
 
 	for totalDeleted < 1000 {
-		messages, err := event.Client().Rest.GetMessages(channelID, 0, 0, 0, 100)
+		messages, err := event.Client().Rest.GetMessages(channelID, 0, before, 0, 100)
 		if err != nil {
 			respond(event, fmt.Sprintf("Fehler: %v", err))
 			return
@@ -118,7 +126,6 @@ func handleClearChat(event *events.ApplicationCommandInteractionCreate) {
 		}
 
 		if len(ids) == 0 {
-			// All messages are > 14 days old, try individual deletion
 			for _, msg := range messages {
 				if err := event.Client().Rest.DeleteMessage(channelID, msg.ID); err != nil {
 					respond(event, fmt.Sprintf("%d Nachrichten gelöscht (weitere zu alt)", totalDeleted))
@@ -127,25 +134,23 @@ func handleClearChat(event *events.ApplicationCommandInteractionCreate) {
 				totalDeleted++
 			}
 			time.Sleep(200 * time.Millisecond)
-			continue
-		}
-
-		if len(ids) == 1 {
+		} else if len(ids) == 1 {
 			if err := event.Client().Rest.DeleteMessage(channelID, ids[0]); err != nil {
 				respond(event, fmt.Sprintf("%d Nachrichten gelöscht (weitere zu alt)", totalDeleted))
 				return
 			}
 			totalDeleted++
 			time.Sleep(200 * time.Millisecond)
-			continue
+		} else {
+			if err := event.Client().Rest.BulkDeleteMessages(channelID, ids); err != nil {
+				respond(event, fmt.Sprintf("%d Nachrichten gelöscht (Rest zu alt für Bulk-Delete)", totalDeleted))
+				return
+			}
+			totalDeleted += len(ids)
+			time.Sleep(200 * time.Millisecond)
 		}
 
-		if err := event.Client().Rest.BulkDeleteMessages(channelID, ids); err != nil {
-			respond(event, fmt.Sprintf("%d Nachrichten gelöscht (Rest zu alt für Bulk-Delete)", totalDeleted))
-			return
-		}
-		totalDeleted += len(ids)
-		time.Sleep(200 * time.Millisecond)
+		before = messages[len(messages)-1].ID
 	}
 
 	if totalDeleted == 0 {

@@ -88,9 +88,8 @@ func (p *Poll) HasVoted(userID snowflake.ID, optionIdx int) bool {
 func (p *Poll) Components() []discord.LayoutComponent {
 	rows := make([]discord.LayoutComponent, len(p.Options))
 	for i, opt := range p.Options {
-		label := fmt.Sprintf("%s", opt)
 		customID := fmt.Sprintf("poll:%s:%d", p.ID, i)
-		btn := discord.NewPrimaryButton(label, customID)
+		btn := discord.NewPrimaryButton(opt, customID)
 		rows[i] = discord.ActionRowComponent{Components: []discord.InteractiveComponent{btn}}
 	}
 	return rows
@@ -184,6 +183,9 @@ func (s *Store) HandleCreate(event *events.ApplicationCommandInteractionCreate) 
 }
 
 func (s *Store) HandleComponent(event *events.ComponentInteractionCreate) {
+	if event.Data.Type() != discord.ComponentTypeButton {
+		return
+	}
 	pollID, optionIdx, ok := ParseCustomID(event.ButtonInteractionData().CustomID())
 	if !ok {
 		return
@@ -197,11 +199,9 @@ func (s *Store) HandleComponent(event *events.ComponentInteractionCreate) {
 	userID := event.User().ID
 	poll.ToggleVote(optionIdx, userID)
 
-	poll.mu.RLock()
 	msg := discord.NewMessageUpdate().
 		WithEmbeds(poll.Embed()).
 		WithComponents(poll.Components()...)
-	poll.mu.RUnlock()
 
 	if err := event.UpdateMessage(msg); err != nil {
 		slog.Warn("failed to update poll message", slog.Any("err", err))

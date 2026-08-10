@@ -218,15 +218,6 @@ func MemberHasRole(roleIDs []snowflake.ID, roleID snowflake.ID) bool {
 	return false
 }
 
-func firstEnv(keys ...string) string {
-	for _, key := range keys {
-		if value, ok := os.LookupEnv(key); ok {
-			return value
-		}
-	}
-	return ""
-}
-
 func parseOptionalSnowflakeEnv(key string) (snowflake.ID, error) {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
