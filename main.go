@@ -37,6 +37,7 @@ func run() error {
 	listeners := []bot.ConfigOpt{
 		bot.WithEventListenerFunc(app.OnReady),
 		bot.WithEventListenerFunc(app.OnComponentInteraction),
+		bot.WithEventListenerFunc(handleSlashCommand),
 	}
 
 	if cfg.ActivityLogChannelID != 0 {
@@ -62,6 +63,8 @@ func run() error {
 		return err
 	}
 	defer client.Close(context.Background())
+
+	registerCommands(client)
 
 	if err = client.OpenGateway(context.Background()); err != nil {
 		return err
