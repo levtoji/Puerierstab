@@ -12,14 +12,19 @@ import (
 )
 
 type ActivityLog struct {
-	channelID  snowflake.ID
-	lastSeqMu  sync.Mutex
-	lastSeq    int
-	hasLastSeq bool
+	channelID    snowflake.ID
+	lastSeqMu    sync.Mutex
+	lastSeq      int
+	hasLastSeq   bool
+	memberRoles  map[snowflake.ID][]snowflake.ID
+	memberRolesMu sync.RWMutex
 }
 
 func New(channelID snowflake.ID) *ActivityLog {
-	return &ActivityLog{channelID: channelID}
+	return &ActivityLog{
+		channelID:   channelID,
+		memberRoles: make(map[snowflake.ID][]snowflake.ID),
+	}
 }
 
 // ---- Embed builders ----
@@ -174,6 +179,9 @@ func (l *ActivityLog) OnGuildMemberJoin(event *events.GuildMemberJoin) {
 	if l.isDuplicate(event.SequenceNumber()) {
 		return
 	}
+	l.memberRolesMu.Lock()
+	l.memberRoles[event.Member.User.ID] = copyRoleIDs(event.Member.RoleIDs)
+	l.memberRolesMu.Unlock()
 	l.post(event.Client(), joinEmbed(event.Member))
 }
 
@@ -181,6 +189,9 @@ func (l *ActivityLog) OnGuildMemberLeave(event *events.GuildMemberLeave) {
 	if l.isDuplicate(event.SequenceNumber()) {
 		return
 	}
+	l.memberRolesMu.Lock()
+	delete(l.memberRoles, event.User.ID)
+	l.memberRolesMu.Unlock()
 	l.post(event.Client(), leaveEmbed(event.Member))
 }
 
@@ -193,13 +204,28 @@ func (l *ActivityLog) OnGuildMemberUpdate(event *events.GuildMemberUpdate) {
 		l.post(event.Client(), nickChangeEmbed(event.Member, oldName, newName))
 	}
 
-	added, removed := roleDiff(event.OldMember.RoleIDs, event.Member.RoleIDs)
+	l.memberRolesMu.Lock()
+	oldRoles := l.memberRoles[event.Member.User.ID]
+	l.memberRoles[event.Member.User.ID] = copyRoleIDs(event.Member.RoleIDs)
+	l.memberRolesMu.Unlock()
+
+	if oldRoles == nil {
+		return
+	}
+
+	added, removed := roleDiff(oldRoles, event.Member.RoleIDs)
 	for _, roleID := range added {
 		l.post(event.Client(), roleAddedEmbed(event.Member, l.roleName(event.Client(), event.GuildID, roleID)))
 	}
 	for _, roleID := range removed {
 		l.post(event.Client(), roleRemovedEmbed(event.Member, l.roleName(event.Client(), event.GuildID, roleID)))
 	}
+}
+
+func copyRoleIDs(ids []snowflake.ID) []snowflake.ID {
+	out := make([]snowflake.ID, len(ids))
+	copy(out, ids)
+	return out
 }
 
 func (l *ActivityLog) OnGuildVoiceJoin(event *events.GuildVoiceJoin) {
