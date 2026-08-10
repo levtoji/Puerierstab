@@ -23,6 +23,7 @@ internal/rolepanel/  — RoleBot, role button interaction, channel-scan panel pu
 internal/activitylog/— join/leave/nick/role/voice event logging with embeddings
 internal/poll/       — multi-choice polls (Store, slash+component handlers)
 internal/icebreaker/ — random question from env JSON (or built-in defaults)
+internal/channelnamer/— AI-generated voice channel names once daily (OpenCode Zen, Big Pickle)
 ```
 
 Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
@@ -36,6 +37,10 @@ Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
 | `ROLE_CATEGORIES_JSON` | yes | JSON array of category objects |
 | `ACTIVITY_LOG_CHANNEL_ID` | no | snowflake, feature disabled when empty |
 | `ICE_BREAKER_QUESTIONS_JSON` | no | JSON string array, falls back to built-in 10 defaults |
+| `RENAME_CHANNEL_IDS` | no | comma-separated snowflakes, triggers AI channel naming |
+| `AI_API_KEY` | no | OpenCode Zen API key (required if RENAME_CHANNEL_IDS set) |
+| `AI_MODEL` | no | default `big-pickle` (free on OpenCode Zen) |
+| `AI_BASE_URL` | no | default `https://opencode.ai/zen/v1` |
 
 ## disgo patterns & gotchas
 

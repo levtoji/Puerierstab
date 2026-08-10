@@ -12,6 +12,7 @@ import (
 	"github.com/disgoorg/disgo/gateway"
 
 	"github.com/levtoji/Puerierstab/internal/activitylog"
+	"github.com/levtoji/Puerierstab/internal/channelnamer"
 	"github.com/levtoji/Puerierstab/internal/config"
 	"github.com/levtoji/Puerierstab/internal/icebreaker"
 	"github.com/levtoji/Puerierstab/internal/poll"
@@ -41,6 +42,14 @@ func run() error {
 		return err
 	}
 	icebreakerHandler = ibHandler
+
+	namer := channelnamer.New(channelnamer.Config{
+		ChannelIDs:   cfg.RenameChannelIDs,
+		APIKey:       cfg.AIAPIKey,
+		Model:        cfg.AIModel,
+		BaseURL:      cfg.AIBaseURL,
+		LogChannelID: cfg.ActivityLogChannelID,
+	})
 
 	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers}
 	listeners := []bot.ConfigOpt{
@@ -80,6 +89,11 @@ func run() error {
 	}
 
 	slog.Info("role bot is running", slog.String("version", disgo.Version), slog.String("role_channel_id", cfg.RoleChannelID.String()))
+
+	if namer != nil {
+		stopNamer := namer.Start(client)
+		defer close(stopNamer)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

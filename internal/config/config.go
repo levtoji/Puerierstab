@@ -16,6 +16,10 @@ const (
 	roleConfigEnv         = "ROLE_CATEGORIES_JSON"
 	roleChannelEnv        = "ROLE_CHANNEL_ID"
 	activityLogChannelEnv = "ACTIVITY_LOG_CHANNEL_ID"
+	renameChannelIDsEnv   = "RENAME_CHANNEL_IDS"
+	aiAPIKeyEnv           = "AI_API_KEY"
+	aiModelEnv            = "AI_MODEL"
+	aiBaseURLEnv          = "AI_BASE_URL"
 	maxButtonsPerRow      = 5
 	maxRowsPerMessage     = 5
 )
@@ -25,6 +29,10 @@ type Config struct {
 	RoleChannelID       snowflake.ID
 	ActivityLogChannelID snowflake.ID
 	Categories          []RoleCategory
+	RenameChannelIDs    []snowflake.ID
+	AIAPIKey            string
+	AIModel             string
+	AIBaseURL           string
 }
 
 type RoleCategory struct {
@@ -63,11 +71,20 @@ func LoadConfigFromEnv() (Config, error) {
 		return Config{}, fmt.Errorf("%s: %w", activityLogChannelEnv, err)
 	}
 
+	renameChannelIDs, _ := parseChannelIDsEnv(renameChannelIDsEnv)
+	aiAPIKey := strings.TrimSpace(os.Getenv(aiAPIKeyEnv))
+	aiModel := strings.TrimSpace(os.Getenv(aiModelEnv))
+	aiBaseURL := strings.TrimSpace(os.Getenv(aiBaseURLEnv))
+
 	return Config{
 		Token:               token,
 		RoleChannelID:       roleChannelID,
 		ActivityLogChannelID: activityLogChannelID,
 		Categories:          categories,
+		RenameChannelIDs:    renameChannelIDs,
+		AIAPIKey:            aiAPIKey,
+		AIModel:             aiModel,
+		AIBaseURL:           aiBaseURL,
 	}, nil
 }
 
@@ -224,6 +241,22 @@ func parseOptionalSnowflakeEnv(key string) (snowflake.ID, error) {
 		return 0, nil
 	}
 	return parseSnowflake(value)
+}
+
+func parseChannelIDsEnv(key string) ([]snowflake.ID, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil, nil
+	}
+	var ids []snowflake.ID
+	for _, part := range strings.Split(value, ",") {
+		id, err := parseSnowflake(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func parseSnowflakeEnv(key string) (snowflake.ID, error) {
