@@ -10,9 +10,18 @@ import (
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/omit"
 	"github.com/disgoorg/snowflake/v2"
+
+	"github.com/levtoji/Puerierstab/internal/icebreaker"
+	"github.com/levtoji/Puerierstab/internal/poll"
 )
 
-var registerOnce sync.Once
+var (
+	registerOnce       sync.Once
+	pollStore          *poll.Store
+	icebreakerHandler  *icebreaker.Handler
+)
+
+var knownCommands = []string{"clear-chat", "poll", "question"}
 
 func registerCommandsOnReady(event *events.GuildReady) {
 	registerOnce.Do(func() {
@@ -21,36 +30,70 @@ func registerCommandsOnReady(event *events.GuildReady) {
 
 		if existing, err := event.Client().Rest.GetGuildCommands(appID, guildID, false); err == nil {
 			for _, cmd := range existing {
-				if cmd.Name() == "clear-chat" {
-					if err := event.Client().Rest.DeleteGuildCommand(appID, guildID, cmd.ID()); err != nil {
-						slog.Warn("failed to delete stale slash command", slog.String("id", cmd.ID().String()), slog.Any("err", err))
+				for _, name := range knownCommands {
+					if cmd.Name() == name {
+						if err := event.Client().Rest.DeleteGuildCommand(appID, guildID, cmd.ID()); err != nil {
+							slog.Warn("failed to delete stale slash command", slog.String("id", cmd.ID().String()), slog.Any("err", err))
+						}
+						break
 					}
 				}
 			}
 		}
 
-		perms := discord.Permissions(discord.PermissionAdministrator)
-		cmd, err := event.Client().Rest.CreateGuildCommand(appID, guildID,
+		adminPerms := discord.Permissions(discord.PermissionAdministrator)
+		cmds := []discord.ApplicationCommandCreate{
 			discord.SlashCommandCreate{
 				Name:                     "clear-chat",
 				Description:              "Löscht alle Nachrichten in diesem Kanal",
-				DefaultMemberPermissions: omit.NewPtr(perms),
+				DefaultMemberPermissions: omit.NewPtr(adminPerms),
 			},
-		)
-		if err != nil {
-			slog.Error("failed to register clear-chat command", slog.Any("err", err))
-			return
+			discord.SlashCommandCreate{
+				Name:        "poll",
+				Description: "Erstellt eine Umfrage mit Mehrfachauswahl",
+				Options: []discord.ApplicationCommandOption{
+					discord.ApplicationCommandOptionString{
+						Name:        "question",
+						Description: "Die Frage der Umfrage",
+						Required:    true,
+					},
+					discord.ApplicationCommandOptionString{
+						Name:        "options",
+						Description: "Antwortmöglichkeiten, Komma-getrennt (2-5)",
+						Required:    true,
+					},
+				},
+			},
+			discord.SlashCommandCreate{
+				Name:        "question",
+				Description: "Postet eine zufällige Diskussionsfrage",
+			},
 		}
-		slog.Info("registered slash command", slog.String("name", cmd.Name()), slog.String("id", cmd.ID().String()), slog.String("guild_id", guildID.String()))
+
+		for _, cmd := range cmds {
+			c, err := event.Client().Rest.CreateGuildCommand(appID, guildID, cmd)
+			if err != nil {
+				slog.Error("failed to register slash command", slog.Any("err", err))
+				continue
+			}
+			slog.Info("registered slash command", slog.String("name", c.Name()), slog.String("id", c.ID().String()), slog.String("guild_id", guildID.String()))
+		}
 	})
 }
 
 func handleSlashCommand(event *events.ApplicationCommandInteractionCreate) {
 	data := event.SlashCommandInteractionData()
-	if data.CommandName() != "clear-chat" {
-		return
+	switch data.CommandName() {
+	case "clear-chat":
+		handleClearChat(event)
+	case "poll":
+		pollStore.HandleCreate(event)
+	case "question":
+		icebreakerHandler.OnCommand(event)
 	}
+}
 
+func handleClearChat(event *events.ApplicationCommandInteractionCreate) {
 	if err := event.DeferCreateMessage(true); err != nil {
 		slog.Warn("failed to defer interaction", slog.Any("err", err))
 		return

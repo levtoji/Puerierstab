@@ -13,6 +13,8 @@ import (
 
 	"github.com/levtoji/Puerierstab/internal/activitylog"
 	"github.com/levtoji/Puerierstab/internal/config"
+	"github.com/levtoji/Puerierstab/internal/icebreaker"
+	"github.com/levtoji/Puerierstab/internal/poll"
 	"github.com/levtoji/Puerierstab/internal/rolepanel"
 )
 
@@ -32,12 +34,20 @@ func run() error {
 	}
 
 	app := rolepanel.NewRoleBot(cfg)
+	pollStore = poll.NewStore()
+
+	ibHandler, err := icebreaker.NewHandler()
+	if err != nil {
+		return err
+	}
+	icebreakerHandler = ibHandler
 
 	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers}
 	listeners := []bot.ConfigOpt{
 		bot.WithEventListenerFunc(app.OnReady),
 		bot.WithEventListenerFunc(registerCommandsOnReady),
 		bot.WithEventListenerFunc(app.OnComponentInteraction),
+		bot.WithEventListenerFunc(pollStore.HandleComponent),
 		bot.WithEventListenerFunc(handleSlashCommand),
 	}
 
