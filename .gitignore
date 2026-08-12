@@ -42,3 +42,6 @@ Puerierstab
 
 # Chat log persistence
 .chatlog.json
+
+# Repowise data
+.repowise/
