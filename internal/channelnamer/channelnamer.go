@@ -51,19 +51,36 @@ func New(cfg Config) *Namer {
 func (n *Namer) Start(client *bot.Client) chan struct{} {
 	stop := make(chan struct{})
 	go func() {
-		for {
-			next := nextSchedule()
-			t := time.NewTimer(next)
-			select {
-			case <-stop:
-				t.Stop()
-				return
-			case <-t.C:
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("channel namer panic", slog.Any("panic", r))
 			}
-			n.renameAll(client)
+		}()
+		for {
+			if !sleepUntil(stop, nextSchedule()) {
+				return
+			}
+			if err := n.renameAll(client); err != nil {
+				slog.Warn("channel rename failed, retrying in 5m", slog.Any("err", err))
+				if !sleepUntil(stop, 5*time.Minute) {
+					return
+				}
+				n.renameAll(client)
+			}
 		}
 	}()
 	return stop
+}
+
+func sleepUntil(stop chan struct{}, d time.Duration) bool {
+	t := time.NewTimer(d)
+	select {
+	case <-stop:
+		t.Stop()
+		return false
+	case <-t.C:
+		return true
+	}
 }
 
 func nextSchedule() time.Duration {
@@ -76,14 +93,14 @@ func nextSchedule() time.Duration {
 }
 
 func (n *Namer) RenameAll(client *bot.Client) {
-	n.renameAll(client)
+	_ = n.renameAll(client)
 }
 
-func (n *Namer) renameAll(client *bot.Client) {
+func (n *Namer) renameAll(client *bot.Client) error {
 	names, err := n.generateNames(n.recent)
 	if err != nil {
 		slog.Warn("failed to generate channel names", slog.Any("err", err))
-		return
+		return err
 	}
 
 	n.mu.Lock()
@@ -130,6 +147,7 @@ func (n *Namer) renameAll(client *bot.Client) {
 			}
 		}
 	}
+	return nil
 }
 
 func renameEmbed(oldName, newName string) discord.Embed {
