@@ -26,6 +26,7 @@ internal/icebreaker/ — random question from env JSON (or built-in defaults)
 internal/channelnamer/— AI-generated voice channel names once daily (OpenCode Zen, Big Pickle)
 internal/asciireact/  — keyword-based ASCII art reactions in chat
 internal/chatlog/     — message history per user (30d retention, for /roast)
+internal/memereact/   — reaction-triggered AI meme/GIF poster (Giphy API)
 ```
 
 Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
@@ -43,6 +44,7 @@ Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
 | `AI_API_KEY` | no | OpenCode Zen API key (required if RENAME_CHANNEL_IDS set) |
 | `AI_MODEL` | no | default `big-pickle` (free on OpenCode Zen) |
 | `AI_BASE_URL` | no | default `https://opencode.ai/zen/v1` |
+| `GIPHY_API_KEY` | no | required for reaction-triggered meme GIFs |
 
 ## disgo patterns & gotchas
 

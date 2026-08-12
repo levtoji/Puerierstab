@@ -17,6 +17,7 @@ import (
 	"github.com/levtoji/Puerierstab/internal/chatlog"
 	"github.com/levtoji/Puerierstab/internal/config"
 	"github.com/levtoji/Puerierstab/internal/icebreaker"
+	"github.com/levtoji/Puerierstab/internal/memereact"
 	"github.com/levtoji/Puerierstab/internal/poll"
 	"github.com/levtoji/Puerierstab/internal/rolepanel"
 )
@@ -65,7 +66,14 @@ func run() error {
 	aiModel = cfg.AIModel
 	aiBaseURL = cfg.AIBaseURL
 
-	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers, gateway.IntentMessageContent}
+	memeReactor := memereact.New(memereact.Config{
+		AIAPIKey:    cfg.AIAPIKey,
+		AIModel:     cfg.AIModel,
+		AIBaseURL:   cfg.AIBaseURL,
+		GiphyAPIKey: cfg.GiphyAPIKey,
+	})
+
+	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers, gateway.IntentMessageContent, gateway.IntentGuildMessageReactions}
 	listeners := []bot.ConfigOpt{
 		bot.WithEventListenerFunc(app.OnReady),
 		bot.WithEventListenerFunc(registerCommandsOnReady),
@@ -74,6 +82,10 @@ func run() error {
 		bot.WithEventListenerFunc(reactor.OnMessageCreate),
 		bot.WithEventListenerFunc(chatLog.OnMessageCreate),
 		bot.WithEventListenerFunc(handleSlashCommand),
+	}
+
+	if memeReactor != nil {
+		listeners = append(listeners, bot.WithEventListenerFunc(memeReactor.OnReactionAdd))
 	}
 
 	if cfg.ActivityLogChannelID != 0 {

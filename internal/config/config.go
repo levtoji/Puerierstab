@@ -20,6 +20,7 @@ const (
 	aiAPIKeyEnv           = "AI_API_KEY"
 	aiModelEnv            = "AI_MODEL"
 	aiBaseURLEnv          = "AI_BASE_URL"
+	giphyAPIKeyEnv        = "GIPHY_API_KEY"
 	maxButtonsPerRow      = 5
 	maxRowsPerMessage     = 5
 )
@@ -33,6 +34,7 @@ type Config struct {
 	AIAPIKey            string
 	AIModel             string
 	AIBaseURL           string
+	GiphyAPIKey         string
 }
 
 type RoleCategory struct {
@@ -78,6 +80,7 @@ func LoadConfigFromEnv() (Config, error) {
 	aiAPIKey := strings.TrimSpace(os.Getenv(aiAPIKeyEnv))
 	aiModel := strings.TrimSpace(os.Getenv(aiModelEnv))
 	aiBaseURL := strings.TrimSpace(os.Getenv(aiBaseURLEnv))
+	giphyAPIKey := strings.TrimSpace(os.Getenv(giphyAPIKeyEnv))
 
 	return Config{
 		Token:               token,
@@ -88,6 +91,7 @@ func LoadConfigFromEnv() (Config, error) {
 		AIAPIKey:            aiAPIKey,
 		AIModel:             aiModel,
 		AIBaseURL:           aiBaseURL,
+		GiphyAPIKey:         giphyAPIKey,
 	}, nil
 }
 
