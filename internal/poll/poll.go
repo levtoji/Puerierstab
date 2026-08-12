@@ -28,7 +28,6 @@ func NewStore() *Store {
 		filePath: ".polls.json",
 	}
 	s.load()
-	go s.cleanupLoop()
 	return s
 }
 
@@ -99,11 +98,19 @@ func (s *Store) Get(id string) (*Poll, bool) {
 	return p, ok
 }
 
-func (s *Store) cleanupLoop() {
-	for {
-		time.Sleep(1 * time.Hour)
-		s.cleanupExpired()
-	}
+func (s *Store) StartCleanup() chan struct{} {
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case <-time.After(1 * time.Hour):
+			}
+			s.cleanupExpired()
+		}
+	}()
+	return stop
 }
 
 func (s *Store) cleanupExpired() {

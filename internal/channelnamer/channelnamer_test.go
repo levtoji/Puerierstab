@@ -48,7 +48,7 @@ func TestParseNames(t *testing.T) {
 		{"simple", "Haus der flüsternden Wände 👻🏚️\nZum tanzenden Einhorn 🦄💃\nClub der müden Kekse 🍪😴", 3, true},
 		{"empty lines ignored", "Name 1 😀\n\nName 2 🎉\n  \nName 3 🔥", 3, true},
 		{"trim whitespace", "  Name 1 😀  \n  Name 2 🎉  ", 2, true},
-		{"too few", "Nur ein Name 😢", 0, false},
+		{"too few", "", 0, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

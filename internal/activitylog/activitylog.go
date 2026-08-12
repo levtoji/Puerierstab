@@ -136,6 +136,26 @@ func roleDiff(oldIDs, newIDs []snowflake.ID) (added, removed []snowflake.ID) {
 	return added, removed
 }
 
+func (l *ActivityLog) roleNames(client *bot.Client, guildID snowflake.ID) map[snowflake.ID]string {
+	names := make(map[snowflake.ID]string)
+	roles, err := client.Rest.GetRoles(guildID)
+	if err != nil {
+		slog.Warn("failed to fetch guild roles", slog.Any("err", err))
+		return names
+	}
+	for _, role := range roles {
+		names[role.ID] = role.Name
+	}
+	return names
+}
+
+func (l *ActivityLog) resolveRoleName(cacheNames map[snowflake.ID]string, client *bot.Client, guildID, roleID snowflake.ID) string {
+	if name, ok := cacheNames[roleID]; ok {
+		return name
+	}
+	return l.roleName(client, guildID, roleID)
+}
+
 func (l *ActivityLog) roleName(client *bot.Client, guildID, roleID snowflake.ID) string {
 	if role, ok := client.Caches.Role(guildID, roleID); ok && role.Name != "" {
 		return role.Name
@@ -227,11 +247,12 @@ func (l *ActivityLog) OnGuildMemberUpdate(event *events.GuildMemberUpdate) {
 	}
 
 	added, removed := roleDiff(oldRoles, event.Member.RoleIDs)
+	names := l.roleNames(event.Client(), event.GuildID)
 	for _, roleID := range added {
-		l.post(event.Client(), roleAddedEmbed(event.Member, l.roleName(event.Client(), event.GuildID, roleID)))
+		l.post(event.Client(), roleAddedEmbed(event.Member, l.resolveRoleName(names, event.Client(), event.GuildID, roleID)))
 	}
 	for _, roleID := range removed {
-		l.post(event.Client(), roleRemovedEmbed(event.Member, l.roleName(event.Client(), event.GuildID, roleID)))
+		l.post(event.Client(), roleRemovedEmbed(event.Member, l.resolveRoleName(names, event.Client(), event.GuildID, roleID)))
 	}
 }
 

@@ -181,7 +181,14 @@ func handleRenameChannels(event *events.ApplicationCommandInteractionCreate) {
 		WithContent("Voice-Channel werden umbenannt...").
 		WithEphemeral(true))
 
-	go channelNamer.RenameAll(event.Client())
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("rename-channels panic", slog.Any("panic", r))
+			}
+		}()
+		channelNamer.RenameAll(event.Client())
+	}()
 }
 
 func respond(event *events.ApplicationCommandInteractionCreate, content string) {

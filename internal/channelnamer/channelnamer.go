@@ -262,5 +262,5 @@ func parseNames(response string) ([]string, bool) {
 		}
 		names = append(names, trimmed)
 	}
-	return names, len(names) >= 2
+	return names, len(names) >= 1
 }

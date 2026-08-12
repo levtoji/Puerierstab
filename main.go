@@ -36,6 +36,8 @@ func run() error {
 
 	app := rolepanel.NewRoleBot(cfg)
 	pollStore = poll.NewStore()
+	stopCleanup := pollStore.StartCleanup()
+	defer close(stopCleanup)
 
 	ibHandler, err := icebreaker.NewHandler()
 	if err != nil {
