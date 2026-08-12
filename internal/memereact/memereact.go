@@ -97,6 +97,20 @@ func New(cfg Config) *Reactor {
 
 func (r *Reactor) MemeLog() *MemeLog { return r.log }
 
+func (r *Reactor) ForceMeme(content string) (string, error) {
+	query, ok := r.aiGate(content)
+	if !ok {
+		r.log.add(content, "NO", "")
+		return "", fmt.Errorf("AI gate said NO")
+	}
+	gifURL, err := r.searchGiphy(query)
+	if err != nil {
+		return "", err
+	}
+	r.log.add(content, "YES", query)
+	return gifURL, nil
+}
+
 func (r *Reactor) OnReactionAdd(event *events.GuildMessageReactionAdd) {
 	if event.UserID == event.Client().ApplicationID {
 		return

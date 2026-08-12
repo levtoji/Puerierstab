@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"runtime"
 	"strings"
 	"time"
@@ -202,3 +203,38 @@ func handleDumpMemes(event *events.ApplicationCommandInteractionCreate) {
 
 func strPtr(s string) *string { return &s }
 func boolPtr(b bool) *bool   { return &b }
+
+func handleTestMemegate(event *events.ApplicationCommandInteractionCreate) {
+	if err := event.DeferCreateMessage(false); err != nil {
+		return
+	}
+
+	if memeReactor == nil {
+		respond(event, "Meme-Reactor nicht aktiv (GIPHY_API_KEY fehlt).")
+		return
+	}
+
+	data := event.SlashCommandInteractionData()
+	text := data.String("text")
+	if text == "" {
+		text = "This is absolutely hilarious and deserves a meme reaction"
+	}
+
+	gifURL, err := memeReactor.ForceMeme(text)
+	if err != nil {
+		slog.Warn("test-memegate failed", slog.Any("err", err))
+		respond(event, fmt.Sprintf("Meme-Gate abgelehnt: %v", err))
+		return
+	}
+
+	embed := discord.Embed{
+		Title:       "🧪 Meme-Gate Test",
+		Description: fmt.Sprintf("**Input:** %s", text),
+		Image:       &discord.EmbedResource{URL: gifURL},
+		Color:       0x9B59B6,
+	}
+	_, _ = event.Client().Rest.UpdateInteractionResponse(
+		event.ApplicationID(), event.Token(),
+		discord.NewMessageUpdate().WithEmbeds(embed),
+	)
+}

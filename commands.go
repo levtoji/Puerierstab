@@ -33,7 +33,7 @@ var (
 	startTime          = time.Now()
 )
 
-var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels", "roast", "dashboard", "dump"}
+var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels", "roast", "dashboard", "dump", "test-memegate"}
 
 func registerCommandsOnReady(event *events.GuildReady) {
 	appID := event.Client().ApplicationID
@@ -126,6 +126,17 @@ func registerCommandsOnReady(event *events.GuildReady) {
 				},
 			},
 		},
+		discord.SlashCommandCreate{
+			Name:                     "test-memegate",
+			Description:              "Testet Meme-Gate mit einem Text (Admin)",
+			DefaultMemberPermissions: omit.NewPtr(adminPerms),
+			Options: []discord.ApplicationCommandOption{
+				discord.ApplicationCommandOptionString{
+					Name:        "text",
+					Description: "Text zum Testen",
+				},
+			},
+		},
 	}
 
 	if _, err := event.Client().Rest.SetGuildCommands(appID, guildID, cmds); err != nil {
@@ -152,6 +163,8 @@ func handleSlashCommand(event *events.ApplicationCommandInteractionCreate) {
 		handleDashboard(event)
 	case "dump":
 		handleDump(event)
+	case "test-memegate":
+		handleTestMemegate(event)
 	}
 }
 
