@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
@@ -149,9 +150,10 @@ func TestBuildComponents(t *testing.T) {
 
 func TestPollEmbed(t *testing.T) {
 	poll := &Poll{
-		Question: "Was gibt's?",
-		Options:  []string{"Pizza", "Pasta"},
-		Votes:    make(map[int]map[snowflake.ID]struct{}),
+		Question:  "Was gibt's?",
+		Options:   []string{"Pizza", "Pasta"},
+		Votes:     make(map[int]map[snowflake.ID]struct{}),
+		CreatedAt: time.Now(),
 	}
 	poll.ToggleVote(0, snowflake.ID(1))
 	poll.ToggleVote(0, snowflake.ID(2))
@@ -201,4 +203,58 @@ func TestParsePollCustomIDInvalid(t *testing.T) {
 
 func itoa(i int) string {
 	return fmt.Sprintf("%d", i)
+}
+
+func TestPollCreatedAt(t *testing.T) {
+	before := time.Now()
+	store := NewStore()
+	poll := store.Create("Test?", []string{"A", "B"}, snowflake.ID(1))
+	after := time.Now()
+
+	if poll.CreatedAt.Before(before) || poll.CreatedAt.After(after) {
+		t.Fatalf("CreatedAt %v not between %v and %v", poll.CreatedAt, before, after)
+	}
+}
+
+func TestPollIsExpired(t *testing.T) {
+	p := &Poll{
+		ID:        "test",
+		CreatedAt: time.Now().Add(-25 * time.Hour),
+	}
+	if !p.IsExpired() {
+		t.Fatal("expected expired poll")
+	}
+
+	p.CreatedAt = time.Now()
+	if p.IsExpired() {
+		t.Fatal("expected fresh poll not expired")
+	}
+}
+
+func TestPollEmbedExpiredTitle(t *testing.T) {
+	p := &Poll{
+		Question:  "Was gibt's?",
+		Options:   []string{"A", "B"},
+		Votes:     make(map[int]map[snowflake.ID]struct{}),
+		CreatedAt: time.Now().Add(-25 * time.Hour),
+	}
+
+	embed := p.Embed()
+	if !strings.Contains(embed.Title, "(abgelaufen)") {
+		t.Fatalf("expected expired title, got %q", embed.Title)
+	}
+}
+
+func TestPollEmbedFreshTitle(t *testing.T) {
+	p := &Poll{
+		Question:  "Was gibt's?",
+		Options:   []string{"A", "B"},
+		Votes:     make(map[int]map[snowflake.ID]struct{}),
+		CreatedAt: time.Now(),
+	}
+
+	embed := p.Embed()
+	if strings.Contains(embed.Title, "(abgelaufen)") {
+		t.Fatalf("fresh poll should not have expired title, got %q", embed.Title)
+	}
 }

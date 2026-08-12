@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
@@ -29,6 +30,7 @@ func (s *Store) Create(question string, options []string, creatorID snowflake.ID
 		Options:   options,
 		Votes:     make(map[int]map[snowflake.ID]struct{}),
 		CreatorID: creatorID,
+		CreatedAt: time.Now(),
 	}
 	s.mu.Lock()
 	s.polls[p.ID] = p
@@ -53,6 +55,7 @@ type Poll struct {
 	Options   []string
 	Votes     map[int]map[snowflake.ID]struct{}
 	CreatorID snowflake.ID
+	CreatedAt time.Time
 	mu        sync.RWMutex
 }
 
@@ -95,9 +98,17 @@ func (p *Poll) Components() []discord.LayoutComponent {
 	return rows
 }
 
+func (p *Poll) IsExpired() bool {
+	return time.Since(p.CreatedAt) > 24*time.Hour
+}
+
 func (p *Poll) Embed() discord.Embed {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	title := p.Question
+	if p.IsExpired() {
+		title += " (abgelaufen)"
+	}
 	fields := make([]discord.EmbedField, len(p.Options))
 	for i, opt := range p.Options {
 		count := len(p.Votes[i])
@@ -107,7 +118,7 @@ func (p *Poll) Embed() discord.Embed {
 		}
 	}
 	return discord.Embed{
-		Title:  p.Question,
+		Title:  title,
 		Color:  0x5865F2,
 		Fields: fields,
 	}
@@ -193,6 +204,13 @@ func (s *Store) HandleComponent(event *events.ComponentInteractionCreate) {
 
 	poll, found := s.Get(pollID)
 	if !found {
+		return
+	}
+
+	if poll.IsExpired() {
+		_ = event.CreateMessage(discord.NewMessageCreate().
+			WithContent("Diese Umfrage ist abgelaufen.").
+			WithEphemeral(true))
 		return
 	}
 
