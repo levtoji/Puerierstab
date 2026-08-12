@@ -1,9 +1,11 @@
 package poll
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,12 +17,62 @@ import (
 )
 
 type Store struct {
-	polls map[string]*Poll
-	mu    sync.RWMutex
+	polls    map[string]*Poll
+	filePath string
+	mu       sync.RWMutex
 }
 
 func NewStore() *Store {
-	return &Store{polls: make(map[string]*Poll)}
+	s := &Store{
+		polls:    make(map[string]*Poll),
+		filePath: ".polls.json",
+	}
+	s.load()
+	return s
+}
+
+func (s *Store) save() {
+	tmpPath := s.filePath + ".tmp"
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		slog.Warn("failed to create poll save file", slog.Any("err", err))
+		return
+	}
+	if err := json.NewEncoder(f).Encode(s.polls); err != nil {
+		f.Close()
+		slog.Warn("failed to encode polls", slog.Any("err", err))
+		return
+	}
+	f.Close()
+	if err := os.Rename(tmpPath, s.filePath); err != nil {
+		slog.Warn("failed to rename poll save file", slog.Any("err", err))
+	}
+}
+
+func (s *Store) load() {
+	data, err := os.ReadFile(s.filePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("failed to read poll save file", slog.Any("err", err))
+		}
+		return
+	}
+	var polls map[string]*Poll
+	if err := json.Unmarshal(data, &polls); err != nil {
+		slog.Warn("failed to parse poll save file", slog.Any("err", err))
+		return
+	}
+	now := time.Now()
+	for id, p := range polls {
+		if now.Sub(p.CreatedAt) > 24*time.Hour {
+			continue
+		}
+		if p.Votes == nil {
+			p.Votes = make(map[int]map[snowflake.ID]struct{})
+		}
+		s.polls[id] = p
+	}
+	slog.Info("loaded polls", slog.Int("count", len(s.polls)))
 }
 
 func (s *Store) Create(question string, options []string, creatorID snowflake.ID) *Poll {
@@ -34,6 +86,7 @@ func (s *Store) Create(question string, options []string, creatorID snowflake.ID
 	}
 	s.mu.Lock()
 	s.polls[p.ID] = p
+	s.save()
 	s.mu.Unlock()
 	return p
 }
@@ -43,6 +96,20 @@ func (s *Store) Get(id string) (*Poll, bool) {
 	defer s.mu.RUnlock()
 	p, ok := s.polls[id]
 	return p, ok
+}
+
+func (s *Store) ToggleVote(pollID string, optionIdx int, userID snowflake.ID) bool {
+	s.mu.RLock()
+	p, ok := s.polls[pollID]
+	s.mu.RUnlock()
+	if !ok {
+		return false
+	}
+	p.ToggleVote(optionIdx, userID)
+	s.mu.Lock()
+	s.save()
+	s.mu.Unlock()
+	return true
 }
 
 func randomID() string {
@@ -215,7 +282,7 @@ func (s *Store) HandleComponent(event *events.ComponentInteractionCreate) {
 	}
 
 	userID := event.User().ID
-	poll.ToggleVote(optionIdx, userID)
+	s.ToggleVote(pollID, optionIdx, userID)
 
 	msg := discord.NewMessageUpdate().
 		WithEmbeds(poll.Embed()).

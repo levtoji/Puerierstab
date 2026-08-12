@@ -2,6 +2,7 @@ package poll
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -256,5 +257,94 @@ func TestPollEmbedFreshTitle(t *testing.T) {
 	embed := p.Embed()
 	if strings.Contains(embed.Title, "(abgelaufen)") {
 		t.Fatalf("fresh poll should not have expired title, got %q", embed.Title)
+	}
+}
+
+func TestSaveAndLoad(t *testing.T) {
+	dir := t.TempDir()
+	store := &Store{
+		polls:    make(map[string]*Poll),
+		filePath: filepath.Join(dir, ".polls.json"),
+	}
+
+	store.Create("Frage 1", []string{"A", "B"}, snowflake.ID(1))
+	store.Create("Frage 2", []string{"X", "Y", "Z"}, snowflake.ID(2))
+
+	store2 := &Store{
+		polls:    make(map[string]*Poll),
+		filePath: filepath.Join(dir, ".polls.json"),
+	}
+	store2.load()
+
+	if len(store2.polls) != 2 {
+		t.Fatalf("expected 2 polls after load, got %d", len(store2.polls))
+	}
+}
+
+func TestLoadFiltersExpiredPolls(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, ".polls.json")
+
+	store := &Store{
+		polls:    make(map[string]*Poll),
+		filePath: fp,
+	}
+
+	store.polls["fresh"] = &Poll{
+		ID:        "fresh",
+		Question:  "Fresh",
+		Options:   []string{"A", "B"},
+		Votes:     make(map[int]map[snowflake.ID]struct{}),
+		CreatedAt: time.Now(),
+	}
+	store.polls["stale"] = &Poll{
+		ID:        "stale",
+		Question:  "Stale",
+		Options:   []string{"A", "B"},
+		Votes:     make(map[int]map[snowflake.ID]struct{}),
+		CreatedAt: time.Now().Add(-48 * time.Hour),
+	}
+	store.save()
+
+	store2 := &Store{
+		polls:    make(map[string]*Poll),
+		filePath: fp,
+	}
+	store2.load()
+
+	if len(store2.polls) != 1 {
+		t.Fatalf("expected 1 poll after filtering expired, got %d", len(store2.polls))
+	}
+	if _, ok := store2.polls["fresh"]; !ok {
+		t.Fatal("expected fresh poll to survive load")
+	}
+	if _, ok := store2.polls["stale"]; ok {
+		t.Fatal("expected stale poll to be filtered out")
+	}
+}
+
+func TestToggleVoteSaves(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, ".polls.json")
+
+	store := &Store{
+		polls:    make(map[string]*Poll),
+		filePath: fp,
+	}
+	p := store.Create("Test?", []string{"A", "B"}, snowflake.ID(1))
+	store.ToggleVote(p.ID, 0, snowflake.ID(99))
+
+	store2 := &Store{
+		polls:    make(map[string]*Poll),
+		filePath: fp,
+	}
+	store2.load()
+
+	loaded, ok := store2.Get(p.ID)
+	if !ok {
+		t.Fatal("expected to find saved poll")
+	}
+	if loaded.VoteCount(0) != 1 {
+		t.Fatalf("expected 1 vote after load, got %d", loaded.VoteCount(0))
 	}
 }

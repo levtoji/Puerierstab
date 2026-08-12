@@ -36,3 +36,6 @@ Puerierstab
 
 # Message store (runtime-generated)
 .role_messages.json
+
+# Poll persistence
+.polls.json
