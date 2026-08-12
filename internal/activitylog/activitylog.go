@@ -12,20 +12,45 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
+type voiceKey struct {
+	userID    snowflake.ID
+	channelID snowflake.ID
+	eventType string
+}
+
+type eventKey struct {
+	userID     snowflake.ID
+	eventType  string
+}
+
 type ActivityLog struct {
-	channelID    snowflake.ID
-	lastSeqMu    sync.Mutex
-	lastSeq      int
-	hasLastSeq   bool
-	memberRoles  map[snowflake.ID][]snowflake.ID
+	channelID     snowflake.ID
+	lastSeqMu     sync.Mutex
+	lastSeq       int
+	hasLastSeq    bool
+	memberRoles   map[snowflake.ID][]snowflake.ID
 	memberRolesMu sync.RWMutex
+	eventCooldown map[eventKey]time.Time
+	eventMu       sync.Mutex
 }
 
 func New(channelID snowflake.ID) *ActivityLog {
 	return &ActivityLog{
-		channelID:   channelID,
-		memberRoles: make(map[snowflake.ID][]snowflake.ID),
+		channelID:     channelID,
+		memberRoles:   make(map[snowflake.ID][]snowflake.ID),
+		eventCooldown: make(map[eventKey]time.Time),
 	}
+}
+
+func (l *ActivityLog) isRecentDuplicate(userID snowflake.ID, eventType string) bool {
+	l.eventMu.Lock()
+	defer l.eventMu.Unlock()
+	key := eventKey{userID: userID, eventType: eventType}
+	if last, ok := l.eventCooldown[key]; ok && time.Since(last) < 3*time.Second {
+		return true
+	}
+	l.eventCooldown[key] = time.Now()
+	return false
 }
 
 // ---- Embed builders ----
@@ -220,6 +245,9 @@ func (l *ActivityLog) OnGuildMemberJoin(event *events.GuildMemberJoin) {
 	if l.isDuplicate(event.SequenceNumber()) {
 		return
 	}
+	if l.isRecentDuplicate(event.Member.User.ID, "join") {
+		return
+	}
 	l.memberRolesMu.Lock()
 	l.memberRoles[event.Member.User.ID] = copyRoleIDs(event.Member.RoleIDs)
 	l.memberRolesMu.Unlock()
@@ -228,6 +256,9 @@ func (l *ActivityLog) OnGuildMemberJoin(event *events.GuildMemberJoin) {
 
 func (l *ActivityLog) OnGuildMemberLeave(event *events.GuildMemberLeave) {
 	if l.isDuplicate(event.SequenceNumber()) {
+		return
+	}
+	if l.isRecentDuplicate(event.User.ID, "leave") {
 		return
 	}
 	l.memberRolesMu.Lock()
@@ -274,6 +305,9 @@ func (l *ActivityLog) OnGuildVoiceJoin(event *events.GuildVoiceJoin) {
 	if l.isDuplicate(event.SequenceNumber()) || event.VoiceState.ChannelID == nil {
 		return
 	}
+	if l.isRecentDuplicate(event.Member.User.ID, "voice_join") {
+		return
+	}
 	l.post(event.Client(), voiceJoinEmbed(event.Member, l.channelName(event.Client(), *event.VoiceState.ChannelID)))
 }
 
@@ -286,6 +320,9 @@ func (l *ActivityLog) OnGuildVoiceMove(event *events.GuildVoiceMove) {
 	if from == nil || to == nil {
 		return
 	}
+	if l.isRecentDuplicate(event.Member.User.ID, "voice_move") {
+		return
+	}
 	l.post(event.Client(), voiceMoveEmbed(event.Member, l.channelName(event.Client(), *from), l.channelName(event.Client(), *to)))
 }
 
@@ -295,6 +332,9 @@ func (l *ActivityLog) OnGuildVoiceLeave(event *events.GuildVoiceLeave) {
 	}
 	from := event.OldVoiceState.ChannelID
 	if from == nil {
+		return
+	}
+	if l.isRecentDuplicate(event.Member.User.ID, "voice_leave") {
 		return
 	}
 	l.post(event.Client(), voiceLeaveEmbed(event.Member, l.channelName(event.Client(), *from)))

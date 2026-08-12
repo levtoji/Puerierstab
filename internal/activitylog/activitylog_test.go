@@ -236,6 +236,40 @@ func TestMemberName(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
+func TestIsRecentDuplicate(t *testing.T) {
+	l := New(0)
+
+	userID := snowflake.MustParse("111111111111111111")
+
+	if l.isRecentDuplicate(userID, "join") {
+		t.Fatal("first event should not be duplicate")
+	}
+
+	if !l.isRecentDuplicate(userID, "join") {
+		t.Fatal("second event within 3s should be duplicate")
+	}
+
+	if l.isRecentDuplicate(userID, "leave") {
+		t.Fatal("different event type should not be duplicate")
+	}
+}
+
+func TestEventCooldownExpires(t *testing.T) {
+	l := New(0)
+	userID := snowflake.MustParse("111111111111111111")
+
+	l.isRecentDuplicate(userID, "join")
+
+	l.eventMu.Lock()
+	k := eventKey{userID: userID, eventType: "join"}
+	l.eventCooldown[k] = time.Now().Add(-4 * time.Second)
+	l.eventMu.Unlock()
+
+	if l.isRecentDuplicate(userID, "join") {
+		t.Fatal("event after cooldown should not be duplicate")
+	}
+}
+
 func TestEmbedHasTimestampFooter(t *testing.T) {
 	member := discord.Member{
 		User: discord.User{
