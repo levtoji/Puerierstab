@@ -12,6 +12,7 @@ import (
 	"github.com/disgoorg/disgo/gateway"
 
 	"github.com/levtoji/Puerierstab/internal/activitylog"
+	"github.com/levtoji/Puerierstab/internal/asciireact"
 	"github.com/levtoji/Puerierstab/internal/channelnamer"
 	"github.com/levtoji/Puerierstab/internal/chatlog"
 	"github.com/levtoji/Puerierstab/internal/config"
@@ -37,6 +38,7 @@ func run() error {
 
 	app := rolepanel.NewRoleBot(cfg)
 	pollStore = poll.NewStore()
+	reactor := asciireact.New()
 	stopCleanup := pollStore.StartCleanup()
 	defer close(stopCleanup)
 
@@ -65,6 +67,7 @@ func run() error {
 		bot.WithEventListenerFunc(registerCommandsOnReady),
 		bot.WithEventListenerFunc(app.OnComponentInteraction),
 		bot.WithEventListenerFunc(pollStore.HandleComponent),
+		bot.WithEventListenerFunc(reactor.OnMessageCreate),
 		bot.WithEventListenerFunc(chatLog.OnMessageCreate),
 		bot.WithEventListenerFunc(handleSlashCommand),
 	}
