@@ -40,7 +40,7 @@ func handleRoast(event *events.ApplicationCommandInteractionCreate) {
 	}
 
 	roast, err := callAI(
-		"Du bist ein professioneller Roast-Comedian. Röstest Freunde mit bissigem Humor — respektlos-witzig, nie beleidigend. Stil: Deutsche Comedy, pointiert.",
+		"Du bist ein Roast-Comedian. Kurze, bissige Einzeiler. Nie länger als EIN Satz. Deutsch.",
 		buildRoastPrompt(target.EffectiveName(), history),
 	)
 	if err != nil {
@@ -78,15 +78,15 @@ type chatChoice struct {
 
 func buildRoastPrompt(name string, history string) string {
 	if history == "" {
-		return fmt.Sprintf("Röste @%s. Wir wissen nichts über ihn/sie — also mach dich über dieses Mysterium lustig. Max 3 Sätze, Deutsch.", name)
+		return fmt.Sprintf("Röste @%s — wir wissen nichts über ihn/sie. Ein kurzer, bissiger Satz. Keine Erklärung, kein Aufbau, nur der Punch. Deutsch.\n\nGutes Beispiel: \"@Kevin — dein einziges Talent ist nicht aufzutauchen.\"", name)
 	}
-	return fmt.Sprintf("Hier sind Chat-Nachrichten von @%s:\n%s\n\nFinde DAS EINE peinlichste oder lustigste Detail und reite drauf rum. Max 3 Sätze, Deutsch. Sei gemein im Spaß, nicht bösartig.", name, history)
+	return fmt.Sprintf("Chat von @%s:\n%s\n\nEin einziger kurzer, bissiger Satz der sich über DAS EINE lustigste Detail lustig macht. Keine Erklärung, kein Aufbau. Nur der Punch. Deutsch.\n\nGutes Beispiel: \"@Kevin — du hast 3x 'Pizza' geschrieben diese Woche. Dein Magen hat mehr Persönlichkeit als du.\"", name, history)
 }
 
 func callAI(system, prompt string) (string, error) {
 	reqBody := chatRequest{
 		Model:       aiModel,
-		Temperature: 1.2,
+		Temperature: 1.0,
 		Messages: []chatMessage{
 			{Role: "system", Content: system},
 			{Role: "user", Content: prompt},
