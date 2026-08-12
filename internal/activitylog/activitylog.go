@@ -101,7 +101,15 @@ func memberName(member discord.Member) string {
 }
 
 func timestampFooter() *discord.EmbedFooter {
-	return &discord.EmbedFooter{Text: time.Now().Format("02.01.2006 15:04:05")}
+	return &discord.EmbedFooter{Text: berlinTime().Format("02.01.2006 15:04:05")}
+}
+
+func berlinTime() time.Time {
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return time.Now()
+	}
+	return time.Now().In(loc)
 }
 
 func nickDiff(oldMember, newMember discord.Member) (oldName, newName string, changed bool) {
