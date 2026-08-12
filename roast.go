@@ -86,7 +86,7 @@ func buildRoastPrompt(name string, history string) string {
 func callAI(system, prompt string) (string, error) {
 	reqBody := chatRequest{
 		Model:       aiModel,
-		Temperature: 1.0,
+		Temperature: 1.2,
 		Messages: []chatMessage{
 			{Role: "system", Content: system},
 			{Role: "user", Content: prompt},
