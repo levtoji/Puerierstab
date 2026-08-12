@@ -66,7 +66,7 @@ func run() error {
 	aiModel = cfg.AIModel
 	aiBaseURL = cfg.AIBaseURL
 
-	memeReactor := memereact.New(memereact.Config{
+	memeReactor = memereact.New(memereact.Config{
 		AIAPIKey:    cfg.AIAPIKey,
 		AIModel:     cfg.AIModel,
 		AIBaseURL:   cfg.AIBaseURL,

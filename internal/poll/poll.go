@@ -98,6 +98,22 @@ func (s *Store) Get(id string) (*Poll, bool) {
 	return p, ok
 }
 
+func (s *Store) Count() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.polls)
+}
+
+func (s *Store) All() []*Poll {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result := make([]*Poll, 0, len(s.polls))
+	for _, p := range s.polls {
+		result = append(result, p)
+	}
+	return result
+}
+
 func (s *Store) StartCleanup() chan struct{} {
 	stop := make(chan struct{})
 	go func() {

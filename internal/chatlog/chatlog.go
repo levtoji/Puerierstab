@@ -66,6 +66,22 @@ func (l *Logger) OnMessageCreate(event *events.GuildMessageCreate) {
 	l.Log(event.Message.Author.ID, event.Message.Content)
 }
 
+func (l *Logger) UserCount() int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return len(l.entries)
+}
+
+func (l *Logger) AllUsers() []snowflake.ID {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	users := make([]snowflake.ID, 0, len(l.entries))
+	for userID := range l.entries {
+		users = append(users, userID)
+	}
+	return users
+}
+
 func (l *Logger) GetMessages(userID snowflake.ID, maxAge time.Duration) []string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()

@@ -16,7 +16,10 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-const minReactions = 2
+const (
+	minReactions  = 2
+	maxLogEntries = 50
+)
 
 type Config struct {
 	AIAPIKey    string
@@ -25,9 +28,52 @@ type Config struct {
 	GiphyAPIKey string
 }
 
+type MemeEntry struct {
+	Timestamp time.Time `json:"timestamp"`
+	Content   string    `json:"content"`
+	Decision  string    `json:"decision"`
+	Query     string    `json:"query"`
+}
+
+type MemeLog struct {
+	entries []MemeEntry
+	mu      sync.Mutex
+}
+
+func (l *MemeLog) add(content, decision, query string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(content) > 100 {
+		content = content[:100]
+	}
+	l.entries = append(l.entries, MemeEntry{
+		Timestamp: time.Now(),
+		Content:   content,
+		Decision:  decision,
+		Query:     query,
+	})
+	if len(l.entries) > maxLogEntries {
+		l.entries = l.entries[len(l.entries)-maxLogEntries:]
+	}
+}
+
+func (l *MemeLog) Recent() []MemeEntry {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	result := make([]MemeEntry, len(l.entries))
+	for i, e := range l.entries {
+		result[i] = e
+	}
+	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+		result[i], result[j] = result[j], result[i]
+	}
+	return result
+}
+
 type Reactor struct {
 	cfg      Config
 	coolDown map[snowflake.ID]time.Time
+	log      *MemeLog
 	mu       sync.Mutex
 }
 
@@ -44,8 +90,11 @@ func New(cfg Config) *Reactor {
 	return &Reactor{
 		cfg:      cfg,
 		coolDown: make(map[snowflake.ID]time.Time),
+		log:      &MemeLog{},
 	}
 }
+
+func (r *Reactor) MemeLog() *MemeLog { return r.log }
 
 func (r *Reactor) OnReactionAdd(event *events.GuildMessageReactionAdd) {
 	if event.UserID == event.Client().ApplicationID {
@@ -90,6 +139,7 @@ func (r *Reactor) OnReactionAdd(event *events.GuildMessageReactionAdd) {
 func (r *Reactor) process(event *events.GuildMessageReactionAdd, content string) {
 	query, ok := r.aiGate(content)
 	if !ok {
+		r.log.add(content, "NO", "")
 		return
 	}
 
@@ -98,6 +148,8 @@ func (r *Reactor) process(event *events.GuildMessageReactionAdd, content string)
 		slog.Warn("giphy search failed", slog.Any("err", err))
 		return
 	}
+
+	r.log.add(content, "YES", query)
 
 	embed := discord.Embed{
 		Image: &discord.EmbedResource{URL: gifURL},
