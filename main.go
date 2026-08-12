@@ -61,6 +61,10 @@ func run() error {
 	})
 	channelNamer = namer
 
+	aiAPIKey = cfg.AIAPIKey
+	aiModel = cfg.AIModel
+	aiBaseURL = cfg.AIBaseURL
+
 	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers, gateway.IntentMessageContent}
 	listeners := []bot.ConfigOpt{
 		bot.WithEventListenerFunc(app.OnReady),
