@@ -28,6 +28,7 @@ func NewStore() *Store {
 		filePath: ".polls.json",
 	}
 	s.load()
+	go s.cleanupLoop()
 	return s
 }
 
@@ -96,6 +97,23 @@ func (s *Store) Get(id string) (*Poll, bool) {
 	defer s.mu.RUnlock()
 	p, ok := s.polls[id]
 	return p, ok
+}
+
+func (s *Store) cleanupLoop() {
+	for {
+		time.Sleep(1 * time.Hour)
+		s.cleanupExpired()
+	}
+}
+
+func (s *Store) cleanupExpired() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, p := range s.polls {
+		if p.IsExpired() {
+			delete(s.polls, id)
+		}
+	}
 }
 
 func (s *Store) ToggleVote(pollID string, optionIdx int, userID snowflake.ID) bool {
@@ -275,6 +293,9 @@ func (s *Store) HandleComponent(event *events.ComponentInteractionCreate) {
 	}
 
 	if poll.IsExpired() {
+		_ = event.UpdateMessage(discord.NewMessageUpdate().
+			WithEmbeds(poll.Embed()).
+			WithComponents(poll.Components()...))
 		_ = event.CreateMessage(discord.NewMessageCreate().
 			WithContent("Diese Umfrage ist abgelaufen.").
 			WithEphemeral(true))

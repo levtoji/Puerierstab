@@ -348,3 +348,32 @@ func TestToggleVoteSaves(t *testing.T) {
 		t.Fatalf("expected 1 vote after load, got %d", loaded.VoteCount(0))
 	}
 }
+
+func TestCleanupExpired(t *testing.T) {
+	store := &Store{polls: make(map[string]*Poll)}
+
+	store.polls["fresh"] = &Poll{
+		ID:        "fresh",
+		Options:   []string{"A", "B"},
+		Votes:     make(map[int]map[snowflake.ID]struct{}),
+		CreatedAt: time.Now(),
+	}
+	store.polls["stale"] = &Poll{
+		ID:        "stale",
+		Options:   []string{"A", "B"},
+		Votes:     make(map[int]map[snowflake.ID]struct{}),
+		CreatedAt: time.Now().Add(-48 * time.Hour),
+	}
+
+	store.cleanupExpired()
+
+	if len(store.polls) != 1 {
+		t.Fatalf("expected 1 poll after cleanup, got %d", len(store.polls))
+	}
+	if _, ok := store.polls["fresh"]; !ok {
+		t.Fatal("expected fresh poll to survive cleanup")
+	}
+	if _, ok := store.polls["stale"]; ok {
+		t.Fatal("expected stale poll to be cleaned up")
+	}
+}
