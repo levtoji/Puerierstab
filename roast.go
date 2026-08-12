@@ -40,7 +40,7 @@ func handleRoast(event *events.ApplicationCommandInteractionCreate) {
 	}
 
 	roast, err := callAI(
-		"Du bist ein Roast-Comedian. Kurze, bissige Einzeiler. Nie länger als EIN Satz. Deutsch.",
+		"Du schreibst witzige, bissige Einzeiler. Kurz und pointiert. Deutsch.",
 		buildRoastPrompt(target.EffectiveName(), history),
 	)
 	if err != nil {
@@ -78,7 +78,7 @@ type chatChoice struct {
 
 func buildRoastPrompt(name string, history string) string {
 	if history == "" {
-		return fmt.Sprintf("Röste @%s — wir wissen nichts über ihn/sie. Ein kurzer, bissiger Satz. Keine Erklärung, kein Aufbau, nur der Punch. Deutsch.\n\nGutes Beispiel: \"@Kevin — dein einziges Talent ist nicht aufzutauchen.\"", name)
+		return fmt.Sprintf("Mach einen witzigen Einzeiler über jemanden namens @%s von dem wir absolut nichts wissen. Das ist der Witz — wir wissen nichts. Ein Satz. Deutsch.\n\nGutes Beispiel: \"@Kevin — selbst Siri sagt 'keine Ergebnisse' wenn sie nach deiner Persönlichkeit sucht.\"", name)
 	}
 	return fmt.Sprintf("Chat von @%s:\n%s\n\nEin einziger kurzer, bissiger Satz der sich über DAS EINE lustigste Detail lustig macht. Keine Erklärung, kein Aufbau. Nur der Punch. Deutsch.\n\nGutes Beispiel: \"@Kevin — du hast 3x 'Pizza' geschrieben diese Woche. Dein Magen hat mehr Persönlichkeit als du.\"", name, history)
 }
