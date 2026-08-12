@@ -17,7 +17,7 @@ No CI, no linter config. Always run `go build ./... && go test ./... && go vet .
 
 ```
 main.go              — thin entrypoint (env → config → client → listener wiring)
-commands.go          — slash command registration + dispatch (all 3 commands)
+commands.go          — slash command registration + dispatch (4 commands: clear-chat, poll, question, rename-channels)
 internal/config/     — Config types, env loading, RoleCategory/RoleButton, BuildCategoryMessages
 internal/rolepanel/  — RoleBot, role button interaction, channel-scan panel publishing
 internal/activitylog/— join/leave/nick/role/voice event logging with embeddings
@@ -54,6 +54,16 @@ Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
 - **Role names**: try `client.Caches.Role(guildID, roleID)` first, then REST `GetRoles(guildID)` as fallback. Cache can miss.
 - **Channel names**: try `client.Caches.GuildVoiceChannel(channelID)` → `Name()`, then REST `GetChannel(channelID)` type-asserted to `discord.GuildVoiceChannel`.
 - **Member cache unreliable**: do NOT use `event.OldMember` from `GuildMemberUpdate` for role/name diffs — the disgo member cache often returns zero values. Maintain a local `map[snowflake.ID][]snowflake.ID` role tracker.
+
+## Additional gotchas
+
+- **Polls**: persisted to `.polls.json` (autosaved on create/vote, expires after 24h).
+- **Channel namer schedule**: runs once daily at 3:00 AM local time (`internal/channelnamer/nextSchedule()`).
+- **`role_id` in JSON**: accepts both string and number (custom `json.UnmarshalJSON` on `jsonSnowflake`).
+- **`custom_id` auto-generation**: if omitted from `ROLE_CATEGORIES_JSON`, defaults to `role_toggle:<role_id>`.
+- **Global state in `commands.go`**: package-level vars (`pollStore`, `icebreakerHandler`, `channelNamer`) are set from `main()`. Tests are per-package and don't touch these.
+- **`icebreaker-questions.json`**: reference file only. Runtime reads from env var `ICE_BREAKER_QUESTIONS_JSON`, not from this file.
+- **`snowflake.MustParse`**: safe for constants, panics on invalid input.
 
 ## Testing
 
