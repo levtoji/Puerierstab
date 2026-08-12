@@ -2,6 +2,7 @@ package activitylog
 
 import (
 	"testing"
+	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/snowflake/v2"
@@ -234,3 +235,37 @@ func TestMemberName(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestEmbedHasTimestampFooter(t *testing.T) {
+	member := discord.Member{
+		User: discord.User{
+			ID:         snowflake.MustParse("111111111111111111"),
+			Username:   "TestUser",
+			GlobalName: &[]string{"TestUser"}[0],
+		},
+	}
+
+	embeds := []discord.Embed{
+		joinEmbed(member),
+		leaveEmbed(member),
+		nickChangeEmbed(member, "old", "new"),
+		roleAddedEmbed(member, "Admin"),
+		roleRemovedEmbed(member, "Admin"),
+		voiceJoinEmbed(member, "General"),
+		voiceLeaveEmbed(member, "General"),
+		voiceMoveEmbed(member, "A", "B"),
+	}
+
+	for i, embed := range embeds {
+		if embed.Footer == nil {
+			t.Fatalf("embed %d: expected Footer, got nil", i)
+		}
+		if embed.Footer.Text == "" {
+			t.Fatalf("embed %d: expected non-empty Footer text", i)
+		}
+		_, err := time.Parse("02.01.2006 15:04:05", embed.Footer.Text)
+		if err != nil {
+			t.Fatalf("embed %d: Footer text %q is not valid timestamp: %v", i, embed.Footer.Text, err)
+		}
+	}
+}

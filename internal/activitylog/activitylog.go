@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
@@ -31,57 +32,65 @@ func New(channelID snowflake.ID) *ActivityLog {
 
 func joinEmbed(member discord.Member) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** ist dem Server beigetreten", memberName(member)),
-		Color: 0x57F287,
+		Title:  fmt.Sprintf("**%s** ist dem Server beigetreten", memberName(member)),
+		Color:  0x57F287,
+		Footer: timestampFooter(),
 	}
 }
 
 func leaveEmbed(member discord.Member) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** hat den Server verlassen", memberName(member)),
-		Color: 0xED4245,
+		Title:  fmt.Sprintf("**%s** hat den Server verlassen", memberName(member)),
+		Color:  0xED4245,
+		Footer: timestampFooter(),
 	}
 }
 
 func nickChangeEmbed(member discord.Member, oldName, newName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** hat den Nicknamen von **%s** zu **%s** geändert", memberName(member), oldName, newName),
-		Color: 0x95A5A6,
+		Title:  fmt.Sprintf("**%s** hat den Nicknamen von **%s** zu **%s** geändert", memberName(member), oldName, newName),
+		Color:  0x95A5A6,
+		Footer: timestampFooter(),
 	}
 }
 
 func roleAddedEmbed(member discord.Member, roleName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** hat die Rolle **%s** erhalten", memberName(member), roleName),
-		Color: 0x5865F2,
+		Title:  fmt.Sprintf("**%s** hat die Rolle **%s** erhalten", memberName(member), roleName),
+		Color:  0x5865F2,
+		Footer: timestampFooter(),
 	}
 }
 
 func roleRemovedEmbed(member discord.Member, roleName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** hat die Rolle **%s** verloren", memberName(member), roleName),
-		Color: 0xE67E22,
+		Title:  fmt.Sprintf("**%s** hat die Rolle **%s** verloren", memberName(member), roleName),
+		Color:  0xE67E22,
+		Footer: timestampFooter(),
 	}
 }
 
 func voiceJoinEmbed(member discord.Member, channelName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** hat den Voice-Channel **#%s** betreten", memberName(member), channelName),
-		Color: 0x3498DB,
+		Title:  fmt.Sprintf("**%s** hat den Voice-Channel **#%s** betreten", memberName(member), channelName),
+		Color:  0x3498DB,
+		Footer: timestampFooter(),
 	}
 }
 
 func voiceLeaveEmbed(member discord.Member, channelName string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** hat den Voice-Channel **#%s** verlassen", memberName(member), channelName),
-		Color: 0x3498DB,
+		Title:  fmt.Sprintf("**%s** hat den Voice-Channel **#%s** verlassen", memberName(member), channelName),
+		Color:  0x3498DB,
+		Footer: timestampFooter(),
 	}
 }
 
 func voiceMoveEmbed(member discord.Member, fromChannel, toChannel string) discord.Embed {
 	return discord.Embed{
-		Title: fmt.Sprintf("**%s** ist von **#%s** nach **#%s** gewechselt", memberName(member), fromChannel, toChannel),
-		Color: 0x3498DB,
+		Title:  fmt.Sprintf("**%s** ist von **#%s** nach **#%s** gewechselt", memberName(member), fromChannel, toChannel),
+		Color:  0x3498DB,
+		Footer: timestampFooter(),
 	}
 }
 
@@ -89,6 +98,10 @@ func voiceMoveEmbed(member discord.Member, fromChannel, toChannel string) discor
 
 func memberName(member discord.Member) string {
 	return member.EffectiveName()
+}
+
+func timestampFooter() *discord.EmbedFooter {
+	return &discord.EmbedFooter{Text: time.Now().Format("02.01.2006 15:04:05")}
 }
 
 func nickDiff(oldMember, newMember discord.Member) (oldName, newName string, changed bool) {
