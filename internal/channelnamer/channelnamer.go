@@ -18,11 +18,12 @@ import (
 )
 
 type Config struct {
-	ChannelIDs   []snowflake.ID
-	APIKey       string
-	Model        string
-	BaseURL      string
-	LogChannelID snowflake.ID
+	ChannelIDs    []snowflake.ID
+	APIKey        string
+	Model         string
+	FallbackModel string
+	BaseURL       string
+	LogChannelID  snowflake.ID
 }
 
 type Namer struct {
@@ -205,9 +206,13 @@ type chatChoice struct {
 }
 
 func (n *Namer) generateNames(recent []string) ([]string, error) {
+	return n.generateNamesWithModel(recent, n.config.Model)
+}
+
+func (n *Namer) generateNamesWithModel(recent []string, model string) ([]string, error) {
 	prompt := buildPrompt(n.config.ChannelIDs, recent)
 	reqBody := chatRequest{
-		Model:       n.config.Model,
+		Model:       model,
 		Temperature: 0.9,
 		Messages: []chatMessage{
 			{Role: "system", Content: "Du bist ein kreativer Namensgenerator für Discord-Voice-Channel."},
@@ -232,6 +237,11 @@ func (n *Namer) generateNames(recent []string) ([]string, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == 429 && n.config.FallbackModel != "" && model != n.config.FallbackModel {
+		slog.Warn("AI model rate limited, falling back", slog.String("from", model), slog.String("to", n.config.FallbackModel))
+		return n.generateNamesWithModel(recent, n.config.FallbackModel)
+	}
 
 	if resp.StatusCode != 200 {
 		respBody, _ := io.ReadAll(resp.Body)

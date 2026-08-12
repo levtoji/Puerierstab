@@ -84,8 +84,12 @@ func buildRoastPrompt(name string, history string) string {
 }
 
 func callAI(system, prompt string) (string, error) {
+	return callAIWithModel(system, prompt, aiModel)
+}
+
+func callAIWithModel(system, prompt, model string) (string, error) {
 	reqBody := chatRequest{
-		Model:       aiModel,
+		Model:       model,
 		Temperature: 1.2,
 		Messages: []chatMessage{
 			{Role: "system", Content: system},
@@ -111,6 +115,11 @@ func callAI(system, prompt string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == 429 && aiFallbackModel != "" && model != aiFallbackModel {
+		slog.Warn("AI model rate limited, falling back", slog.String("from", model), slog.String("to", aiFallbackModel))
+		return callAIWithModel(system, prompt, aiFallbackModel)
+	}
 
 	if resp.StatusCode != 200 {
 		respBody, _ := io.ReadAll(resp.Body)

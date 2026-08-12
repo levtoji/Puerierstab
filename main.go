@@ -54,23 +54,26 @@ func run() error {
 	icebreakerHandler = ibHandler
 
 	namer := channelnamer.New(channelnamer.Config{
-		ChannelIDs:   cfg.RenameChannelIDs,
-		APIKey:       cfg.AIAPIKey,
-		Model:        cfg.AIModel,
-		BaseURL:      cfg.AIBaseURL,
-		LogChannelID: cfg.ActivityLogChannelID,
+		ChannelIDs:    cfg.RenameChannelIDs,
+		APIKey:        cfg.AIAPIKey,
+		Model:         cfg.AIModel,
+		FallbackModel: cfg.AIFallbackModel,
+		BaseURL:       cfg.AIBaseURL,
+		LogChannelID:  cfg.ActivityLogChannelID,
 	})
 	channelNamer = namer
 
 	aiAPIKey = cfg.AIAPIKey
 	aiModel = cfg.AIModel
+	aiFallbackModel = cfg.AIFallbackModel
 	aiBaseURL = cfg.AIBaseURL
 
 	memeReactor = memereact.New(memereact.Config{
-		AIAPIKey:    cfg.AIAPIKey,
-		AIModel:     cfg.AIModel,
-		AIBaseURL:   cfg.AIBaseURL,
-		GiphyAPIKey: cfg.GiphyAPIKey,
+		AIAPIKey:       cfg.AIAPIKey,
+		AIModel:        cfg.AIModel,
+		AIFallbackModel: cfg.AIFallbackModel,
+		AIBaseURL:      cfg.AIBaseURL,
+		GiphyAPIKey:    cfg.GiphyAPIKey,
 	})
 
 	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers, gateway.IntentMessageContent, gateway.IntentGuildMessageReactions}

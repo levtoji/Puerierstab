@@ -43,6 +43,7 @@ Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
 | `RENAME_CHANNEL_IDS` | no | comma-separated snowflakes, triggers AI channel naming |
 | `AI_API_KEY` | no | OpenCode Zen API key (required if RENAME_CHANNEL_IDS set) |
 | `AI_MODEL` | no | default `big-pickle` (free on OpenCode Zen) |
+| `AI_FALLBACK_MODEL` | no | used when primary model hits rate limit (e.g. `deepseek-flash`) |
 | `AI_BASE_URL` | no | default `https://opencode.ai/zen/v1` |
 | `GIPHY_API_KEY` | no | required for reaction-triggered meme GIFs |
 

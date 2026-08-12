@@ -22,10 +22,11 @@ const (
 )
 
 type Config struct {
-	AIAPIKey    string
-	AIModel     string
-	AIBaseURL   string
-	GiphyAPIKey string
+	AIAPIKey      string
+	AIModel       string
+	AIFallbackModel string
+	AIBaseURL     string
+	GiphyAPIKey   string
 }
 
 type MemeEntry struct {
@@ -159,8 +160,12 @@ func (r *Reactor) process(event *events.GuildMessageReactionAdd, content string)
 }
 
 func (r *Reactor) aiGate(content string) (string, bool) {
+	return r.aiGateWithModel(content, r.cfg.AIModel)
+}
+
+func (r *Reactor) aiGateWithModel(content, model string) (string, bool) {
 	reqBody := map[string]interface{}{
-		"model":       r.cfg.AIModel,
+		"model":       model,
 		"temperature": 0.3,
 		"messages": []map[string]string{
 			{"role": "system", "content": "You analyze messages and decide if they'd be fun to react to with a GIF/meme. If YES, provide 1-3 short English Giphy search terms. Reply with just the terms or NO."},
@@ -180,6 +185,11 @@ func (r *Reactor) aiGate(content string) (string, bool) {
 		return "", false
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == 429 && r.cfg.AIFallbackModel != "" && model != r.cfg.AIFallbackModel {
+		slog.Warn("AI model rate limited, falling back", slog.String("from", model), slog.String("to", r.cfg.AIFallbackModel))
+		return r.aiGateWithModel(content, r.cfg.AIFallbackModel)
+	}
 
 	var cr struct {
 		Choices []struct {

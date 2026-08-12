@@ -25,9 +25,10 @@ var (
 	icebreakerHandler  *icebreaker.Handler
 	channelNamer       *channelnamer.Namer
 	chatLog            *chatlog.Logger
-	aiAPIKey           string
-	aiModel            string
-	aiBaseURL          string
+	aiAPIKey         string
+	aiModel          string
+	aiFallbackModel  string
+	aiBaseURL        string
 	memeReactor        *memereact.Reactor
 	startTime          = time.Now()
 )

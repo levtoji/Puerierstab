@@ -20,6 +20,7 @@ const (
 	aiAPIKeyEnv           = "AI_API_KEY"
 	aiModelEnv            = "AI_MODEL"
 	aiBaseURLEnv          = "AI_BASE_URL"
+	aiFallbackModelEnv    = "AI_FALLBACK_MODEL"
 	giphyAPIKeyEnv        = "GIPHY_API_KEY"
 	maxButtonsPerRow      = 5
 	maxRowsPerMessage     = 5
@@ -33,6 +34,7 @@ type Config struct {
 	RenameChannelIDs    []snowflake.ID
 	AIAPIKey            string
 	AIModel             string
+	AIFallbackModel     string
 	AIBaseURL           string
 	GiphyAPIKey         string
 }
@@ -80,6 +82,7 @@ func LoadConfigFromEnv() (Config, error) {
 	aiAPIKey := strings.TrimSpace(os.Getenv(aiAPIKeyEnv))
 	aiModel := strings.TrimSpace(os.Getenv(aiModelEnv))
 	aiBaseURL := strings.TrimSpace(os.Getenv(aiBaseURLEnv))
+	aiFallbackModel := strings.TrimSpace(os.Getenv(aiFallbackModelEnv))
 	giphyAPIKey := strings.TrimSpace(os.Getenv(giphyAPIKeyEnv))
 
 	return Config{
@@ -90,6 +93,7 @@ func LoadConfigFromEnv() (Config, error) {
 		RenameChannelIDs:    renameChannelIDs,
 		AIAPIKey:            aiAPIKey,
 		AIModel:             aiModel,
+		AIFallbackModel:     aiFallbackModel,
 		AIBaseURL:           aiBaseURL,
 		GiphyAPIKey:         giphyAPIKey,
 	}, nil
