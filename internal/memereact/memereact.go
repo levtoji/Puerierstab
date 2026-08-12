@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -148,7 +149,22 @@ func (r *Reactor) OnReactionAdd(event *events.GuildMessageReactionAdd) {
 		return
 	}
 
-	go r.process(event, content)
+	context := content
+	prev, err := event.Client().Rest.GetMessages(event.ChannelID, 0, msgID, 0, 3)
+	if err == nil && len(prev) > 0 {
+		var parts []string
+		for i := len(prev) - 1; i >= 0; i-- {
+			if prev[i].Content != "" {
+				parts = append(parts, prev[i].Content)
+			}
+		}
+		parts = append(parts, content)
+		if len(parts) > 1 {
+			context = strings.Join(parts, "\n---\n")
+		}
+	}
+
+	go r.process(event, context)
 }
 
 func (r *Reactor) process(event *events.GuildMessageReactionAdd, content string) {
@@ -182,7 +198,7 @@ func (r *Reactor) aiGateWithModel(content, model string) (string, bool) {
 		"model":       model,
 		"temperature": 0.3,
 		"messages": []map[string]string{
-			{"role": "system", "content": "You analyze messages and decide if they'd be fun to react to with a GIF/meme. If YES, provide 1-3 short English Giphy search terms. Reply with just the terms or NO."},
+			{"role": "system", "content": "You analyze conversation context and decide if the last message deserves a GIF/meme reaction. Consider sarcasm, callbacks, and jokes. If YES, provide 1-3 short English Giphy search terms. Reply with just the terms or NO."},
 			{"role": "user", "content": content},
 		},
 	}
