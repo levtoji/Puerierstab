@@ -12,6 +12,7 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 
 	"github.com/levtoji/Puerierstab/internal/channelnamer"
+	"github.com/levtoji/Puerierstab/internal/chatlog"
 	"github.com/levtoji/Puerierstab/internal/icebreaker"
 	"github.com/levtoji/Puerierstab/internal/poll"
 )
@@ -22,6 +23,7 @@ var (
 	pollStore          *poll.Store
 	icebreakerHandler  *icebreaker.Handler
 	channelNamer       *channelnamer.Namer
+	chatLog            *chatlog.Logger
 )
 
 var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels"}

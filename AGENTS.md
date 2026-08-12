@@ -24,6 +24,7 @@ internal/activitylog/— join/leave/nick/role/voice event logging with embedding
 internal/poll/       — multi-choice polls (Store, slash+component handlers)
 internal/icebreaker/ — random question from env JSON (or built-in defaults)
 internal/channelnamer/— AI-generated voice channel names once daily (OpenCode Zen, Big Pickle)
+internal/chatlog/     — message history per user (30d retention, for /roast)
 ```
 
 Key pattern: feature packages under `internal/`, `main.go` only wires listeners.

@@ -13,6 +13,7 @@ import (
 
 	"github.com/levtoji/Puerierstab/internal/activitylog"
 	"github.com/levtoji/Puerierstab/internal/channelnamer"
+	"github.com/levtoji/Puerierstab/internal/chatlog"
 	"github.com/levtoji/Puerierstab/internal/config"
 	"github.com/levtoji/Puerierstab/internal/icebreaker"
 	"github.com/levtoji/Puerierstab/internal/poll"
@@ -39,6 +40,10 @@ func run() error {
 	stopCleanup := pollStore.StartCleanup()
 	defer close(stopCleanup)
 
+	chatLog = chatlog.New()
+	stopChatCleanup := chatLog.StartCleanup()
+	defer close(stopChatCleanup)
+
 	ibHandler, err := icebreaker.NewHandler()
 	if err != nil {
 		return err
@@ -54,12 +59,13 @@ func run() error {
 	})
 	channelNamer = namer
 
-	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers}
+	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers, gateway.IntentMessageContent}
 	listeners := []bot.ConfigOpt{
 		bot.WithEventListenerFunc(app.OnReady),
 		bot.WithEventListenerFunc(registerCommandsOnReady),
 		bot.WithEventListenerFunc(app.OnComponentInteraction),
 		bot.WithEventListenerFunc(pollStore.HandleComponent),
+		bot.WithEventListenerFunc(chatLog.OnMessageCreate),
 		bot.WithEventListenerFunc(handleSlashCommand),
 	}
 

@@ -39,3 +39,6 @@ Puerierstab
 
 # Poll persistence
 .polls.json
+
+# Chat log persistence
+.chatlog.json
