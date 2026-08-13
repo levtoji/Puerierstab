@@ -37,7 +37,7 @@ var (
 	startTime          = time.Now()
 )
 
-var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels", "roast", "dashboard", "dump", "test-memegate", "backfill-chatlog"}
+var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels", "roast", "dashboard", "dump", "test-memegate", "backfill-chatlog", "generate-profiles"}
 
 func registerCommandsOnReady(event *events.GuildReady) {
 	appID := event.Client().ApplicationID
@@ -143,7 +143,12 @@ func registerCommandsOnReady(event *events.GuildReady) {
 		},
 		discord.SlashCommandCreate{
 			Name:                     "backfill-chatlog",
-			Description:              "Baut das Chatlog aus der Discord-History neu auf (letzte 30 Tage, Admin)",
+			Description:              "Baut das Chatlog aus der Discord-History neu auf (letzte 90 Tage, Admin)",
+			DefaultMemberPermissions: omit.NewPtr(adminPerms),
+		},
+		discord.SlashCommandCreate{
+			Name:                     "generate-profiles",
+			Description:              "Generiert die Persönlichkeitsprofile sofort (Admin)",
 			DefaultMemberPermissions: omit.NewPtr(adminPerms),
 		},
 	}
@@ -176,6 +181,8 @@ func handleSlashCommand(event *events.ApplicationCommandInteractionCreate) {
 		handleTestMemegate(event)
 	case "backfill-chatlog":
 		handleBackfillChatlog(event)
+	case "generate-profiles":
+		handleGenerateProfiles(event)
 	}
 }
 
@@ -334,6 +341,28 @@ func handleBackfillChatlog(event *events.ApplicationCommandInteractionCreate) {
 
 		chatLog.ResetAndImport(entries)
 		respond(event, fmt.Sprintf("Chatlog neu aufgebaut: %d Nachrichten von %d Usern (90 Tage).", len(entries), chatLog.UserCount()))
+	}()
+}
+
+func handleGenerateProfiles(event *events.ApplicationCommandInteractionCreate) {
+	if err := event.DeferCreateMessage(true); err != nil {
+		slog.Warn("failed to defer interaction", slog.Any("err", err))
+		return
+	}
+
+	if profilePipeline == nil {
+		respond(event, "Profil-Pipeline ist deaktiviert (AI_API_KEY fehlt).")
+		return
+	}
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("generate-profiles panic", slog.Any("panic", r))
+			}
+		}()
+		updated := profilePipeline.RunOnce()
+		respond(event, fmt.Sprintf("Profil-Pipeline fertig: %d Profile generiert/aktualisiert.", updated))
 	}()
 }
 

@@ -118,10 +118,11 @@ func nextSchedule() time.Duration {
 	return next.Sub(now)
 }
 
-func (p *Profiler) RunOnce() {
+func (p *Profiler) RunOnce() int {
 	if p.chat == nil {
-		return
+		return 0
 	}
+	updated := 0
 	for _, userID := range p.chat.AllUsers() {
 		msgs := p.chat.GetMessages(userID, window)
 		if len(msgs) == 0 {
@@ -146,8 +147,10 @@ func (p *Profiler) RunOnce() {
 		p.store.Profiles[userID] = Profile{Text: text, UpdatedAt: time.Now()}
 		p.store.save()
 		p.store.mu.Unlock()
+		updated++
 		slog.Info("profile updated", slog.String("user_id", userID.String()))
 	}
+	return updated
 }
 
 func trimHistory(msgs []string) string {

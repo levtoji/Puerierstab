@@ -133,7 +133,9 @@ func TestRunOncePersists(t *testing.T) {
 
 	p := New(Config{APIKey: "test-key", Model: "big-pickle", BaseURL: server.URL, Dir: dir}, chat, rx)
 	p.httpClient = server.Client()
-	p.RunOnce()
+	if got := p.RunOnce(); got != 1 {
+		t.Fatalf("expected 1 updated profile, got %d", got)
+	}
 
 	prof, ok := p.Get(snowflake.ID(1))
 	if !ok {

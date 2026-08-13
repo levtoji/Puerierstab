@@ -13,11 +13,15 @@ go vet ./...            # static analysis
 
 No CI, no linter config. Always run `go build ./... && go test ./... && go vet ./...` before committing.
 
+## Git policy
+
+Direct commits and pushes to `main` are explicitly allowed (Railway auto-deploys from `main`). Feature branches optional — only create one when the user asks. Always ask before tagging.
+
 ## Architecture
 
 ```
 main.go              — thin entrypoint (env → config → client → listener wiring)
-commands.go          — slash command registration + dispatch (clear-chat, poll, question, rename-channels, roast, dashboard, dump, test-memegate, backfill-chatlog)
+commands.go          — slash command registration + dispatch (clear-chat, poll, question, rename-channels, roast, dashboard, dump, test-memegate, backfill-chatlog, generate-profiles)
 internal/config/     — Config types, env loading, RoleCategory/RoleButton, BuildCategoryMessages
 internal/rolepanel/  — RoleBot, role button interaction, channel-scan panel publishing
 internal/activitylog/— join/leave/nick/role/voice event logging with embeddings
