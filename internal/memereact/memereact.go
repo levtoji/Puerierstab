@@ -98,6 +98,27 @@ func New(cfg Config) *Reactor {
 
 func (r *Reactor) MemeLog() *MemeLog { return r.log }
 
+func truncate(s string, max int) string {
+	if len(s) > max {
+		return s[:max]
+	}
+	return s
+}
+
+func reactionCount(msg *discord.Message) int {
+	total := 0
+	for _, rxn := range msg.Reactions {
+		count := rxn.Count
+		if rxn.Me {
+			count--
+		}
+		if count > 0 {
+			total += count
+		}
+	}
+	return total
+}
+
 func (r *Reactor) ForceMeme(content string) (string, error) {
 	query, ok := r.aiGate(content)
 	if !ok {
@@ -121,26 +142,16 @@ func (r *Reactor) OnReactionAdd(event *events.GuildMessageReactionAdd) {
 	}
 
 	msgID := event.MessageID
-	r.mu.Lock()
-	if last, ok := r.coolDown[msgID]; ok && time.Since(last) < 24*time.Hour {
-		r.mu.Unlock()
-		return
-	}
-	r.coolDown[msgID] = time.Now()
-	r.mu.Unlock()
+	client := event.Client()
 
-	msg, err := event.Client().Rest.GetMessage(event.ChannelID, msgID)
+	msg, err := client.Rest.GetMessage(event.ChannelID, msgID)
 	if err != nil {
+		slog.Warn("meme gate: failed to fetch message", slog.Any("err", err))
 		return
 	}
 
-	reactionCount := 0
-	for _, rxn := range msg.Reactions {
-		if rxn.Count >= minReactions {
-			reactionCount += rxn.Count
-		}
-	}
-	if reactionCount < minReactions {
+	totalReactions := reactionCount(msg)
+	if totalReactions < minReactions {
 		return
 	}
 
@@ -149,8 +160,16 @@ func (r *Reactor) OnReactionAdd(event *events.GuildMessageReactionAdd) {
 		return
 	}
 
+	r.mu.Lock()
+	if last, ok := r.coolDown[msgID]; ok && time.Since(last) < 24*time.Hour {
+		r.mu.Unlock()
+		return
+	}
+	r.coolDown[msgID] = time.Now()
+	r.mu.Unlock()
+
 	context := content
-	prev, err := event.Client().Rest.GetMessages(event.ChannelID, 0, msgID, 0, 3)
+	prev, err := client.Rest.GetMessages(event.ChannelID, 0, msgID, 0, 3)
 	if err == nil && len(prev) > 0 {
 		var parts []string
 		for i := len(prev) - 1; i >= 0; i-- {
@@ -171,16 +190,18 @@ func (r *Reactor) process(event *events.GuildMessageReactionAdd, content string)
 	query, ok := r.aiGate(content)
 	if !ok {
 		r.log.add(content, "NO", "")
+		slog.Info("meme gate: NO", slog.String("content", truncate(content, 100)))
 		return
 	}
 
 	gifURL, err := r.searchGiphy(query)
 	if err != nil {
-		slog.Warn("giphy search failed", slog.Any("err", err))
+		slog.Warn("giphy search failed", slog.String("query", query), slog.Any("err", err))
 		return
 	}
 
 	r.log.add(content, "YES", query)
+	slog.Info("meme gate: YES", slog.String("content", truncate(content, 100)), slog.String("query", query))
 
 	embed := discord.Embed{
 		Image: &discord.EmbedResource{URL: gifURL},
