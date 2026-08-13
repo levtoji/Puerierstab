@@ -33,7 +33,7 @@ var (
 	startTime          = time.Now()
 )
 
-var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels", "roast", "dashboard", "dump", "test-memegate"}
+var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels", "roast", "dashboard", "dump", "test-memegate", "backfill-chatlog"}
 
 func registerCommandsOnReady(event *events.GuildReady) {
 	appID := event.Client().ApplicationID
@@ -137,6 +137,11 @@ func registerCommandsOnReady(event *events.GuildReady) {
 				},
 			},
 		},
+		discord.SlashCommandCreate{
+			Name:                     "backfill-chatlog",
+			Description:              "Baut das Chatlog aus der Discord-History neu auf (letzte 30 Tage, Admin)",
+			DefaultMemberPermissions: omit.NewPtr(adminPerms),
+		},
 	}
 
 	if _, err := event.Client().Rest.SetGuildCommands(appID, guildID, cmds); err != nil {
@@ -165,6 +170,8 @@ func handleSlashCommand(event *events.ApplicationCommandInteractionCreate) {
 		handleDump(event)
 	case "test-memegate":
 		handleTestMemegate(event)
+	case "backfill-chatlog":
+		handleBackfillChatlog(event)
 	}
 }
 
@@ -250,6 +257,79 @@ func handleRenameChannels(event *events.ApplicationCommandInteractionCreate) {
 			}
 		}()
 		channelNamer.RenameAll(event.Client())
+	}()
+}
+
+func handleBackfillChatlog(event *events.ApplicationCommandInteractionCreate) {
+	if err := event.DeferCreateMessage(true); err != nil {
+		slog.Warn("failed to defer interaction", slog.Any("err", err))
+		return
+	}
+
+	guildID := event.GuildID()
+	if guildID == nil {
+		respond(event, "Dieser Befehl funktioniert nur in einem Server.")
+		return
+	}
+
+	client := event.Client()
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("backfill-chatlog panic", slog.Any("panic", r))
+			}
+		}()
+
+		channels, err := client.Rest.GetGuildChannels(*guildID)
+		if err != nil {
+			respond(event, fmt.Sprintf("Fehler beim Laden der Channels: %v", err))
+			return
+		}
+
+		cutoff := time.Now().Add(-30 * 24 * time.Hour)
+		var entries []chatlog.Entry
+		for _, ch := range channels {
+			textCh, ok := ch.(*discord.GuildTextChannel)
+			if !ok {
+				continue
+			}
+			channelID := textCh.ID()
+			var before snowflake.ID
+			for {
+				messages, err := client.Rest.GetMessages(channelID, 0, before, 0, 100)
+				if err != nil {
+					slog.Warn("failed to fetch messages for backfill", slog.String("channel_id", channelID.String()), slog.Any("err", err))
+					break
+				}
+				if len(messages) == 0 {
+					break
+				}
+				olderThanCutoff := false
+				for _, msg := range messages {
+					if msg.ID.Time().Before(cutoff) {
+						olderThanCutoff = true
+						break
+					}
+					if msg.Author.Bot {
+						continue
+					}
+					entries = append(entries, chatlog.Entry{
+						UserID:    msg.Author.ID,
+						Content:   msg.Content,
+						Timestamp: msg.ID.Time(),
+					})
+				}
+				before = messages[len(messages)-1].ID
+				if olderThanCutoff {
+					break
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
+
+		chatLog.ResetAndImport(entries)
+		respond(event, fmt.Sprintf("Chatlog neu aufgebaut: %d Nachrichten von %d Usern (30 Tage).", len(entries), chatLog.UserCount()))
 	}()
 }
 

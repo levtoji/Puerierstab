@@ -59,6 +59,16 @@ func (l *Logger) Log(userID snowflake.ID, content string) {
 	l.save()
 }
 
+func (l *Logger) ResetAndImport(entries []Entry) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.entries = make(map[snowflake.ID][]Entry)
+	for _, e := range entries {
+		l.entries[e.UserID] = append(l.entries[e.UserID], e)
+	}
+	l.save()
+}
+
 // OnMessageCreate is the event listener for GuildMessageCreate
 func (l *Logger) OnMessageCreate(event *events.GuildMessageCreate) {
 	if event.Message.Author.Bot {

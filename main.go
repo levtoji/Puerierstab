@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/disgoorg/disgo"
 	"github.com/disgoorg/disgo/bot"
@@ -19,6 +20,7 @@ import (
 	"github.com/levtoji/Puerierstab/internal/icebreaker"
 	"github.com/levtoji/Puerierstab/internal/memereact"
 	"github.com/levtoji/Puerierstab/internal/poll"
+	"github.com/levtoji/Puerierstab/internal/reconnectmonitor"
 	"github.com/levtoji/Puerierstab/internal/rolepanel"
 )
 
@@ -76,6 +78,8 @@ func run() error {
 		GiphyAPIKey:    cfg.GiphyAPIKey,
 	})
 
+	reconnectMonitor := reconnectmonitor.New(5, 10*time.Minute)
+
 	intents := []gateway.Intents{gateway.IntentGuilds, gateway.IntentGuildMembers, gateway.IntentMessageContent, gateway.IntentGuildMessageReactions}
 	listeners := []bot.ConfigOpt{
 		bot.WithEventListenerFunc(app.OnReady),
@@ -85,6 +89,7 @@ func run() error {
 		bot.WithEventListenerFunc(reactor.OnMessageCreate),
 		bot.WithEventListenerFunc(chatLog.OnMessageCreate),
 		bot.WithEventListenerFunc(handleSlashCommand),
+		bot.WithEventListenerFunc(reconnectMonitor.OnResumed),
 	}
 
 	if memeReactor != nil {

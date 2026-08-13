@@ -83,3 +83,33 @@ func TestCleanup(t *testing.T) {
 		t.Fatalf("expected only 'neu' after cleanup, got %v", l.entries[userID])
 	}
 }
+
+func TestResetAndImportReplacesAndPersists(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, ".chatlog.json")
+
+	l := &Logger{entries: make(map[snowflake.ID][]Entry), filePath: fp}
+	l.Log(snowflake.ID(1), "alte nachricht")
+
+	l.ResetAndImport([]Entry{
+		{UserID: snowflake.ID(2), Content: "neu 1", Timestamp: time.Now()},
+		{UserID: snowflake.ID(2), Content: "neu 2", Timestamp: time.Now()},
+		{UserID: snowflake.ID(3), Content: "auch neu", Timestamp: time.Now()},
+	})
+
+	if l.UserCount() != 2 {
+		t.Fatalf("expected 2 users after reset, got %d", l.UserCount())
+	}
+	if msgs := l.GetMessages(snowflake.ID(1), 30*24*time.Hour); len(msgs) != 0 {
+		t.Fatalf("expected old entries gone, got %v", msgs)
+	}
+	if msgs := l.GetMessages(snowflake.ID(2), 30*24*time.Hour); len(msgs) != 2 {
+		t.Fatalf("expected 2 messages for user 2, got %v", msgs)
+	}
+
+	l2 := &Logger{entries: make(map[snowflake.ID][]Entry), filePath: fp}
+	l2.load()
+	if l2.UserCount() != 2 {
+		t.Fatalf("expected 2 users persisted, got %d", l2.UserCount())
+	}
+}

@@ -17,7 +17,7 @@ No CI, no linter config. Always run `go build ./... && go test ./... && go vet .
 
 ```
 main.go              — thin entrypoint (env → config → client → listener wiring)
-commands.go          — slash command registration + dispatch (4 commands: clear-chat, poll, question, rename-channels)
+commands.go          — slash command registration + dispatch (clear-chat, poll, question, rename-channels, roast, dashboard, dump, test-memegate, backfill-chatlog)
 internal/config/     — Config types, env loading, RoleCategory/RoleButton, BuildCategoryMessages
 internal/rolepanel/  — RoleBot, role button interaction, channel-scan panel publishing
 internal/activitylog/— join/leave/nick/role/voice event logging with embeddings
@@ -27,6 +27,7 @@ internal/channelnamer/— AI-generated voice channel names once daily (OpenCode 
 internal/asciireact/  — keyword-based ASCII art reactions in chat
 internal/chatlog/     — message history per user (30d retention, for /roast)
 internal/memereact/   — reaction-triggered AI meme/GIF poster (Giphy API)
+internal/reconnectmonitor/— counts gateway `Resumed` events, WARNs above 5 reconnects / 10 min
 ```
 
 Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
