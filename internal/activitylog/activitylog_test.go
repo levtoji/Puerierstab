@@ -270,6 +270,24 @@ func TestEventCooldownExpires(t *testing.T) {
 	}
 }
 
+func TestIsRealVoiceMove(t *testing.T) {
+	chA := ptr(snowflake.MustParse("111111111111111111"))
+	chB := ptr(snowflake.MustParse("222222222222222222"))
+
+	if isRealVoiceMove(chA, chB) != true {
+		t.Fatal("different channels should be a real move")
+	}
+	if isRealVoiceMove(chA, chA) {
+		t.Fatal("same channel is not a real move")
+	}
+	if isRealVoiceMove(nil, chB) {
+		t.Fatal("nil from is not a move")
+	}
+	if isRealVoiceMove(chA, nil) {
+		t.Fatal("nil to is not a move")
+	}
+}
+
 func TestEmbedHasTimestampFooter(t *testing.T) {
 	member := discord.Member{
 		User: discord.User{

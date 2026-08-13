@@ -12,12 +12,6 @@ import (
 	"github.com/disgoorg/snowflake/v2"
 )
 
-type voiceKey struct {
-	userID    snowflake.ID
-	channelID snowflake.ID
-	eventType string
-}
-
 type eventKey struct {
 	userID     snowflake.ID
 	eventType  string
@@ -221,11 +215,25 @@ func (l *ActivityLog) channelName(client *bot.Client, channelID snowflake.ID) st
 	return channelID.String()
 }
 
-func (l *ActivityLog) post(client *bot.Client, embed discord.Embed) {
-	_, err := client.Rest.CreateMessage(l.channelID, discord.NewMessageCreate().WithEmbeds(embed))
-	if err != nil {
-		slog.Warn("failed to post activity log", slog.Any("err", err))
+func (l *ActivityLog) post(client *bot.Client, embed discord.Embed, fields ...any) {
+	if _, err := client.Rest.CreateMessage(l.channelID, discord.NewMessageCreate().WithEmbeds(embed)); err != nil {
+		slog.Warn("failed to post activity log", append([]any{slog.Any("err", err)}, fields...)...)
+		return
 	}
+	slog.Info("activity log posted", fields...)
+}
+
+func postFields(eventType string, member discord.Member, seq int) []any {
+	return []any{
+		slog.String("event", eventType),
+		slog.String("user", memberName(member)),
+		slog.String("user_id", member.User.ID.String()),
+		slog.Int("seq", seq),
+	}
+}
+
+func voicePostFields(eventType string, member discord.Member, channelID snowflake.ID, seq int) []any {
+	return append(postFields(eventType, member, seq), slog.String("channel_id", channelID.String()))
 }
 
 // ---- Event handlers ----
@@ -251,7 +259,7 @@ func (l *ActivityLog) OnGuildMemberJoin(event *events.GuildMemberJoin) {
 	l.memberRolesMu.Lock()
 	l.memberRoles[event.Member.User.ID] = copyRoleIDs(event.Member.RoleIDs)
 	l.memberRolesMu.Unlock()
-	l.post(event.Client(), joinEmbed(event.Member))
+	l.post(event.Client(), joinEmbed(event.Member), postFields("member_join", event.Member, event.SequenceNumber())...)
 }
 
 func (l *ActivityLog) OnGuildMemberLeave(event *events.GuildMemberLeave) {
@@ -264,7 +272,7 @@ func (l *ActivityLog) OnGuildMemberLeave(event *events.GuildMemberLeave) {
 	l.memberRolesMu.Lock()
 	delete(l.memberRoles, event.User.ID)
 	l.memberRolesMu.Unlock()
-	l.post(event.Client(), leaveEmbed(event.Member))
+	l.post(event.Client(), leaveEmbed(event.Member), postFields("member_leave", event.Member, event.SequenceNumber())...)
 }
 
 func (l *ActivityLog) OnGuildMemberUpdate(event *events.GuildMemberUpdate) {
@@ -273,7 +281,7 @@ func (l *ActivityLog) OnGuildMemberUpdate(event *events.GuildMemberUpdate) {
 	}
 	oldName, newName, changed := nickDiff(event.OldMember, event.Member)
 	if changed {
-		l.post(event.Client(), nickChangeEmbed(event.Member, oldName, newName))
+		l.post(event.Client(), nickChangeEmbed(event.Member, oldName, newName), postFields("nick_change", event.Member, event.SequenceNumber())...)
 	}
 
 	l.memberRolesMu.Lock()
@@ -288,10 +296,10 @@ func (l *ActivityLog) OnGuildMemberUpdate(event *events.GuildMemberUpdate) {
 	added, removed := roleDiff(oldRoles, event.Member.RoleIDs)
 	names := l.roleNames(event.Client(), event.GuildID)
 	for _, roleID := range added {
-		l.post(event.Client(), roleAddedEmbed(event.Member, l.resolveRoleName(names, event.Client(), event.GuildID, roleID)))
+		l.post(event.Client(), roleAddedEmbed(event.Member, l.resolveRoleName(names, event.Client(), event.GuildID, roleID)), postFields("role_added", event.Member, event.SequenceNumber())...)
 	}
 	for _, roleID := range removed {
-		l.post(event.Client(), roleRemovedEmbed(event.Member, l.resolveRoleName(names, event.Client(), event.GuildID, roleID)))
+		l.post(event.Client(), roleRemovedEmbed(event.Member, l.resolveRoleName(names, event.Client(), event.GuildID, roleID)), postFields("role_removed", event.Member, event.SequenceNumber())...)
 	}
 }
 
@@ -308,7 +316,8 @@ func (l *ActivityLog) OnGuildVoiceJoin(event *events.GuildVoiceJoin) {
 	if l.isRecentDuplicate(event.Member.User.ID, "voice_join") {
 		return
 	}
-	l.post(event.Client(), voiceJoinEmbed(event.Member, l.channelName(event.Client(), *event.VoiceState.ChannelID)))
+	channelID := *event.VoiceState.ChannelID
+	l.post(event.Client(), voiceJoinEmbed(event.Member, l.channelName(event.Client(), channelID)), voicePostFields("voice_join", event.Member, channelID, event.SequenceNumber())...)
 }
 
 func (l *ActivityLog) OnGuildVoiceMove(event *events.GuildVoiceMove) {
@@ -317,13 +326,20 @@ func (l *ActivityLog) OnGuildVoiceMove(event *events.GuildVoiceMove) {
 	}
 	from := event.OldVoiceState.ChannelID
 	to := event.VoiceState.ChannelID
-	if from == nil || to == nil {
+	// disgo fires GuildVoiceMove for every voice state update where both
+	// channels are set — including mute/stream toggles and state replays
+	// while the member stays in the same channel. Those are not real moves.
+	if !isRealVoiceMove(from, to) {
 		return
 	}
 	if l.isRecentDuplicate(event.Member.User.ID, "voice_move") {
 		return
 	}
-	l.post(event.Client(), voiceMoveEmbed(event.Member, l.channelName(event.Client(), *from), l.channelName(event.Client(), *to)))
+	l.post(event.Client(), voiceMoveEmbed(event.Member, l.channelName(event.Client(), *from), l.channelName(event.Client(), *to)), voicePostFields("voice_move", event.Member, *to, event.SequenceNumber())...)
+}
+
+func isRealVoiceMove(from, to *snowflake.ID) bool {
+	return from != nil && to != nil && *from != *to
 }
 
 func (l *ActivityLog) OnGuildVoiceLeave(event *events.GuildVoiceLeave) {
@@ -337,5 +353,5 @@ func (l *ActivityLog) OnGuildVoiceLeave(event *events.GuildVoiceLeave) {
 	if l.isRecentDuplicate(event.Member.User.ID, "voice_leave") {
 		return
 	}
-	l.post(event.Client(), voiceLeaveEmbed(event.Member, l.channelName(event.Client(), *from)))
+	l.post(event.Client(), voiceLeaveEmbed(event.Member, l.channelName(event.Client(), *from)), voicePostFields("voice_leave", event.Member, *from, event.SequenceNumber())...)
 }
