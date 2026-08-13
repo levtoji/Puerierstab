@@ -217,7 +217,7 @@ func buildProfilePrompt(name, history string, given, received map[string]int) st
 	if r := formatEmojiTop(received, 5); r != "" {
 		b.WriteString(fmt.Sprintf("\nTop-Reaktionen auf @%s's Nachrichten: %s\n", name, r))
 	}
-	b.WriteString("\nSchreibe ein Persönlichkeitsprofil von 2-3 Sätzen. Präzise, witzig, aber nicht gemein. Deutsch.")
+	b.WriteString("\nSchreibe ein neutrales, sachliches Persönlichkeitsprofil von 2-3 Sätzen. Trocken, wertfrei und präzise. Deutsch.")
 	return b.String()
 }
 
@@ -248,9 +248,9 @@ func (p *Profiler) generateProfileWithModel(userID snowflake.ID, name, history s
 	prompt := buildProfilePrompt(name, history, given, received)
 	reqBody := chatRequest{
 		Model:       model,
-		Temperature: 0.8,
+		Temperature: 0.7,
 		Messages: []chatMessage{
-			{Role: "system", Content: "Du erstellst ein knappes Persönlichkeitsprofil eines Discord-Users basierend auf seinen Nachrichten und Reaktionen. Deutsch."},
+			{Role: "system", Content: "Du erstellst ein neutrales, sachliches Persönlichkeitsprofil eines Discord-Users basierend auf seinen Nachrichten und Reaktionen. Deutsch."},
 			{Role: "user", Content: prompt},
 		},
 	}

@@ -64,8 +64,8 @@ func TestGenerateProfile(t *testing.T) {
 		if req.Model != "big-pickle" {
 			t.Fatalf("expected model big-pickle, got %q", req.Model)
 		}
-		if req.Temperature != 0.8 {
-			t.Fatalf("expected temperature 0.8, got %f", req.Temperature)
+		if req.Temperature != 0.7 {
+			t.Fatalf("expected temperature 0.7, got %f", req.Temperature)
 		}
 		json.NewEncoder(w).Encode(chatResponse{Choices: []chatChoice{{Message: chatMessage{Content: "Kevin ist ein Pizza-Enthusiast."}}}})
 	}))
