@@ -44,12 +44,22 @@ type Store struct {
 	mu       sync.RWMutex
 }
 
+// MemberInfo resolves identity metadata (best-effort) for a chatlog user,
+// e.g. the member's display name and guild roles.
+type MemberInfo func(userID snowflake.ID) (name string, roles []string)
+
 type Profiler struct {
 	cfg        Config
 	chat       *chatlog.Logger
 	reactions  *reactions.Logger
 	store      *Store
+	memberInfo MemberInfo
 	httpClient *http.Client
+}
+
+// SetMemberInfo installs an optional resolver for display names and roles.
+func (p *Profiler) SetMemberInfo(fn MemberInfo) {
+	p.memberInfo = fn
 }
 
 func New(cfg Config, chat *chatlog.Logger, rx *reactions.Logger) *Profiler {
@@ -132,6 +142,17 @@ func nextSchedule() time.Duration {
 	return next.Sub(now)
 }
 
+// profileData bundles the per-user inputs for a single profile generation.
+type profileData struct {
+	name    string
+	roles   string
+	msgCount int
+	avgLen  int
+	history string
+	given   map[string]int
+	received map[string]int
+}
+
 func (p *Profiler) RunOnce() int {
 	if p.chat == nil {
 		return 0
@@ -142,14 +163,29 @@ func (p *Profiler) RunOnce() int {
 		if len(msgs) == 0 {
 			continue
 		}
-		history := trimHistory(msgs)
-		var given, received map[string]int
+
+		d := profileData{
+			history:  trimHistory(msgs),
+			msgCount: len(msgs),
+			name:     "User",
+		}
+		total := 0
+		for _, m := range msgs {
+			total += len(m)
+		}
+		d.avgLen = total / len(msgs)
+
+		if p.memberInfo != nil {
+			if name, roles := p.memberInfo(userID); name != "" {
+				d.name = name
+				d.roles = strings.Join(roles, ", ")
+			}
+		}
 		if p.reactions != nil {
-			given, received = p.reactions.Stats(userID, window)
+			d.given, d.received = p.reactions.Stats(userID, window)
 		}
 
-		name := "User"
-		text, err := p.generateProfile(userID, name, history, given, received)
+		text, err := p.generateProfile(userID, d)
 		if err != nil {
 			slog.Warn("profile generation failed", slog.String("user_id", userID.String()), slog.Any("err", err))
 			continue
@@ -208,14 +244,25 @@ func formatEmojiTop(counts map[string]int, limit int) string {
 	return strings.Join(parts, ", ")
 }
 
-func buildProfilePrompt(name, history string, given, received map[string]int) string {
+func buildProfilePrompt(d profileData) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("Nachrichten von @%s (letzte 3 Monate):\n%s\n", name, history))
-	if g := formatEmojiTop(given, 5); g != "" {
-		b.WriteString(fmt.Sprintf("\nTop-Reaktionen, die @%s vergibt: %s\n", name, g))
+	b.WriteString(fmt.Sprintf("Nachrichten von @%s (letzte 3 Monate):\n", d.name))
+	if d.roles != "" {
+		b.WriteString("Serverrollen: " + d.roles + "\n")
 	}
-	if r := formatEmojiTop(received, 5); r != "" {
-		b.WriteString(fmt.Sprintf("\nTop-Reaktionen auf @%s's Nachrichten: %s\n", name, r))
+	if d.msgCount > 0 {
+		stats := fmt.Sprintf("%d Nachrichten", d.msgCount)
+		if d.avgLen > 0 {
+			stats += fmt.Sprintf(", Ø %d Zeichen", d.avgLen)
+		}
+		b.WriteString("Verhalten: " + stats + ".\n")
+	}
+	b.WriteString("\n" + d.history + "\n")
+	if g := formatEmojiTop(d.given, 5); g != "" {
+		b.WriteString(fmt.Sprintf("\nTop-Reaktionen, die @%s vergibt: %s\n", d.name, g))
+	}
+	if r := formatEmojiTop(d.received, 5); r != "" {
+		b.WriteString(fmt.Sprintf("\nTop-Reaktionen auf @%s's Nachrichten: %s\n", d.name, r))
 	}
 	b.WriteString("\nSchreibe ein neutrales, sachliches Persönlichkeitsprofil von 2-3 Sätzen. Trocken, wertfrei und präzise. Deutsch.")
 	return b.String()
@@ -240,12 +287,12 @@ type chatChoice struct {
 	Message chatMessage `json:"message"`
 }
 
-func (p *Profiler) generateProfile(userID snowflake.ID, name, history string, given, received map[string]int) (string, error) {
-	return p.generateProfileWithModel(userID, name, history, given, received, p.cfg.Model)
+func (p *Profiler) generateProfile(userID snowflake.ID, d profileData) (string, error) {
+	return p.generateProfileWithModel(userID, d, p.cfg.Model)
 }
 
-func (p *Profiler) generateProfileWithModel(userID snowflake.ID, name, history string, given, received map[string]int, model string) (string, error) {
-	prompt := buildProfilePrompt(name, history, given, received)
+func (p *Profiler) generateProfileWithModel(userID snowflake.ID, d profileData, model string) (string, error) {
+	prompt := buildProfilePrompt(d)
 	reqBody := chatRequest{
 		Model:       model,
 		Temperature: 0.7,
@@ -269,7 +316,7 @@ func (p *Profiler) generateProfileWithModel(userID snowflake.ID, name, history s
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return p.generateProfileWithFallback(userID, name, history, given, received, model, err)
+		return p.generateProfileWithFallback(userID, d, model, err)
 	}
 	defer resp.Body.Close()
 
@@ -277,7 +324,7 @@ func (p *Profiler) generateProfileWithModel(userID snowflake.ID, name, history s
 		respBody, _ := io.ReadAll(resp.Body)
 		err := fmt.Errorf("AI API returned %d: %s", resp.StatusCode, string(respBody))
 		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
-			return p.generateProfileWithFallback(userID, name, history, given, received, model, err)
+			return p.generateProfileWithFallback(userID, d, model, err)
 		}
 		return "", err
 	}
@@ -296,12 +343,12 @@ func (p *Profiler) generateProfileWithModel(userID snowflake.ID, name, history s
 // generateProfileWithFallback retries once with the configured fallback model
 // when the primary model failed transiently (timeout, rate limit, server
 // error). The model guard prevents an endless fallback loop.
-func (p *Profiler) generateProfileWithFallback(userID snowflake.ID, name, history string, given, received map[string]int, model string, err error) (string, error) {
+func (p *Profiler) generateProfileWithFallback(userID snowflake.ID, d profileData, model string, err error) (string, error) {
 	if p.cfg.FallbackModel == "" || model == p.cfg.FallbackModel {
 		return "", err
 	}
 	slog.Warn("AI primary model failed, falling back", slog.String("from", model), slog.String("to", p.cfg.FallbackModel), slog.Any("err", err))
-	return p.generateProfileWithModel(userID, name, history, given, received, p.cfg.FallbackModel)
+	return p.generateProfileWithModel(userID, d, p.cfg.FallbackModel)
 }
 
 func (s *Store) save() {

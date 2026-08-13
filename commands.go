@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
 	"github.com/disgoorg/omit"
@@ -23,16 +24,17 @@ import (
 var (
 	registeredGuilds   = map[snowflake.ID]struct{}{}
 	registeredGuildsMu sync.Mutex
+	primaryGuildID     snowflake.ID
 	pollStore          *poll.Store
 	icebreakerHandler  *icebreaker.Handler
 	channelNamer       *channelnamer.Namer
 	chatLog            *chatlog.Logger
 	reactionLog        *reactions.Logger
 	profilePipeline    *profile.Profiler
-	aiAPIKey         string
-	aiModel          string
-	aiFallbackModel  string
-	aiBaseURL        string
+	aiAPIKey           string
+	aiModel            string
+	aiFallbackModel    string
+	aiBaseURL          string
 	memeReactor        *memereact.Reactor
 	startTime          = time.Now()
 )
@@ -42,6 +44,10 @@ var knownCommands = []string{"clear-chat", "poll", "question", "rename-channels"
 func registerCommandsOnReady(event *events.GuildReady) {
 	appID := event.Client().ApplicationID
 	guildID := event.GuildID
+
+	if primaryGuildID == 0 {
+		primaryGuildID = guildID
+	}
 
 	registeredGuildsMu.Lock()
 	if _, ok := registeredGuilds[guildID]; ok {
@@ -375,4 +381,34 @@ func respond(event *events.ApplicationCommandInteractionCreate, content string) 
 	); err != nil {
 		slog.Warn("failed to edit interaction response", slog.Any("err", err))
 	}
+}
+
+// resolveMemberProfile resolves a user's display name and guild roles
+// best-effort, preferring the member cache and falling back to REST. It
+// returns empty strings when nothing can be resolved.
+func resolveMemberProfile(client *bot.Client, userID snowflake.ID) (string, []string) {
+	if primaryGuildID == 0 {
+		return "", nil
+	}
+
+	var member discord.Member
+	found := false
+	if m, ok := client.Caches.Member(primaryGuildID, userID); ok {
+		member = m
+		found = true
+	} else if m, err := client.Rest.GetMember(primaryGuildID, userID); err == nil {
+		member = *m
+		found = true
+	}
+	if !found {
+		return "", nil
+	}
+
+	var roles []string
+	for _, roleID := range member.RoleIDs {
+		if r, ok := client.Caches.Role(primaryGuildID, roleID); ok && r.Name != "" {
+			roles = append(roles, r.Name)
+		}
+	}
+	return member.EffectiveName(), roles
 }

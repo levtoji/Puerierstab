@@ -11,6 +11,7 @@ import (
 	"github.com/disgoorg/disgo"
 	"github.com/disgoorg/disgo/bot"
 	"github.com/disgoorg/disgo/gateway"
+	"github.com/disgoorg/snowflake/v2"
 
 	"github.com/levtoji/Puerierstab/internal/activitylog"
 	"github.com/levtoji/Puerierstab/internal/asciireact"
@@ -134,6 +135,12 @@ func run() error {
 		return err
 	}
 	defer client.Close(context.Background())
+
+	if profilePipeline != nil {
+		profilePipeline.SetMemberInfo(func(userID snowflake.ID) (string, []string) {
+			return resolveMemberProfile(client, userID)
+		})
+	}
 
 	if err = client.OpenGateway(context.Background()); err != nil {
 		return err

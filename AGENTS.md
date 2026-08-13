@@ -32,7 +32,7 @@ internal/asciireact/  — keyword-based ASCII art reactions in chat
 internal/chatlog/     — message history per user (90d retention, for /roast)
 internal/memereact/   — reaction-triggered AI meme/GIF poster (Giphy API)
 internal/reactions/   — emoji reactions per user (given/received, 90d, for /roast + profiles)
-internal/profile/     — daily 3 AM AI personality profiles per user from chatlog + reactions
+internal/profile/     — daily 3 AM AI personality profiles per user from chatlog + reactions + member identity (nickname/roles via best-effort resolver)
 internal/reconnectmonitor/— counts gateway `Resumed` events, WARNs above 5 reconnects / 10 min
 ```
 

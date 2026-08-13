@@ -40,14 +40,22 @@ func TestNextSchedule(t *testing.T) {
 }
 
 func TestBuildProfilePrompt(t *testing.T) {
-	msg := buildProfilePrompt("Kevin", "Hallo Welt", map[string]int{"🍕": 3}, map[string]int{"🔥": 5})
-	for _, want := range []string{"Kevin", "Hallo Welt", "🍕 (3)", "🔥 (5)"} {
+	msg := buildProfilePrompt(profileData{
+		name:     "Kevin",
+		roles:    "Admin, Supporter",
+		msgCount: 42,
+		avgLen:   60,
+		history:  "Hallo Welt",
+		given:    map[string]int{"🍕": 3},
+		received: map[string]int{"🔥": 5},
+	})
+	for _, want := range []string{"Kevin", "Hallo Welt", "🍕 (3)", "🔥 (5)", "Admin, Supporter", "42 Nachrichten"} {
 		if !strings.Contains(msg, want) {
 			t.Fatalf("expected prompt to contain %q, got:\n%s", want, msg)
 		}
 	}
 
-	noData := buildProfilePrompt("Kevin", "", nil, nil)
+	noData := buildProfilePrompt(profileData{name: "Kevin"})
 	if !strings.Contains(noData, "Kevin") {
 		t.Fatalf("expected prompt to work without data")
 	}
@@ -76,7 +84,7 @@ func TestGenerateProfile(t *testing.T) {
 	}
 	p.httpClient = server.Client()
 
-	got, err := p.generateProfile(snowflake.ID(1), "Kevin", "Nachrichten", nil, nil)
+	got, err := p.generateProfile(snowflake.ID(1), profileData{name: "Kevin", history: "Nachrichten"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +115,7 @@ func TestGenerateProfileFallback(t *testing.T) {
 	}
 	p.httpClient = server.Client()
 
-	got, err := p.generateProfile(snowflake.ID(1), "Kevin", "Nachrichten", nil, nil)
+	got, err := p.generateProfile(snowflake.ID(1), profileData{name: "Kevin", history: "Nachrichten"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -141,12 +149,21 @@ func TestRunOncePersists(t *testing.T) {
 	rx.LogReaction(snowflake.ID(1), snowflake.ID(0), "🍕")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req chatRequest
+		json.NewDecoder(r.Body).Decode(&req)
+		if !strings.Contains(req.Messages[len(req.Messages)-1].Content, "@Kevin") ||
+			!strings.Contains(req.Messages[len(req.Messages)-1].Content, "Pizza-Lord") {
+			t.Fatalf("prompt missing identity context:\n%s", req.Messages[len(req.Messages)-1].Content)
+		}
 		json.NewEncoder(w).Encode(chatResponse{Choices: []chatChoice{{Message: chatMessage{Content: "Kevin Profil"}}}})
 	}))
 	defer server.Close()
 
 	p := New(Config{APIKey: "test-key", Model: "big-pickle", BaseURL: server.URL, Dir: dir}, chat, rx)
 	p.httpClient = server.Client()
+	p.SetMemberInfo(func(userID snowflake.ID) (string, []string) {
+		return "Kevin", []string{"Pizza-Lord"}
+	})
 	if got := p.RunOnce(); got != 1 {
 		t.Fatalf("expected 1 updated profile, got %d", got)
 	}
