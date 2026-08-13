@@ -60,10 +60,9 @@ type Reaction struct {
 ```
 
 - Store: `map[snowflake.ID][]Reaction`, Datei `.reactions.json`, Speicher-/Ladepattern und 90d-`cleanup()` wie `chatlog.Logger` (tmp-File + Rename, mutex).
-- **Message→Author-Index** (in-memory, bounded): Listener auf `GuildMessageCreate` (alle Nachrichten inkl. Bots), `map[messageID]authorID`, Cap ~10.000 Einträge (älteste werden verworfen). Dient der "bekommen"-Zuordnung ohne REST-Lookup.
 - **`OnReactionAdd`** (`GuildMessageReactionAdd`):
-  - immer: `given` für den Actor loggen (`ActorID`, Emoji)
-  - wenn MessageID im Author-Index: zusätzlich `received` für den Author loggen (`TargetUserID`, Emoji)
+  - immer: `given` für den Actor loggen (`ActorID = event.UserID`, Emoji)
+  - wenn `event.MessageAuthorID` gesetzt (wird von Discord im `MESSAGE_REACTION_ADD`-Gateway-Payload direkt mitgeliefert — kein Author-Index nötig): zusätzlich `received` für den Author loggen (`TargetUserID`, Emoji)
 - **Statistik-Funktion** für Konsumenten:
   `Stats(userID, maxAge) (given map[string]int, received map[string]int)` — aggregiert über 90d.
 - Emoji-String: `event.Emoji.Name` (Custom-Emoji: Name; Unicode: Glyphe).
