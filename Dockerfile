@@ -12,12 +12,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/puerier
 FROM alpine:3.22
 
 RUN adduser -D -H appuser \
-    && mkdir /app /data \
-    && chown appuser /app /data
+    && mkdir -p /app /data \
+    && chown appuser /app /data \
+    && apk add --no-cache su-exec
 
-USER appuser
 WORKDIR /app
 
 COPY --from=build /out/puerierstab /usr/local/bin/puerierstab
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-ENTRYPOINT ["/usr/local/bin/puerierstab"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
