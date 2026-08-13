@@ -2,8 +2,10 @@ package memereact
 
 import (
 	"testing"
+	"time"
 
 	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 func TestNewReturnsNilWithoutKeys(t *testing.T) {
@@ -58,5 +60,33 @@ func TestReactionCount(t *testing.T) {
 		{Count: 1, Emoji: discord.Emoji{Name: "b"}},
 	})); c != 3 {
 		t.Fatalf("expected bot's own reaction excluded (1+2), got %d", c)
+	}
+}
+
+func TestTryBeginCooldown(t *testing.T) {
+	r := &Reactor{coolDown: make(map[snowflake.ID]time.Time)}
+	msgID := snowflake.ID(1)
+
+	if !r.tryBegin(msgID) {
+		t.Fatal("expected first begin to succeed")
+	}
+	if r.tryBegin(msgID) {
+		t.Fatal("expected second begin to be blocked by cooldown")
+	}
+	if _, ok := r.coolDown[msgID]; !ok {
+		t.Fatal("expected message to be marked as in-progress")
+	}
+}
+
+func TestTryBeginPrunesExpired(t *testing.T) {
+	r := &Reactor{coolDown: make(map[snowflake.ID]time.Time)}
+	msgID := snowflake.ID(1)
+	r.coolDown[msgID] = time.Now().Add(-coolDownDuration - time.Minute)
+
+	if !r.tryBegin(msgID) {
+		t.Fatal("expected expired cooldown to allow begin")
+	}
+	if len(r.coolDown) != 1 {
+		t.Fatalf("expected only the new entry to remain, got %d entries", len(r.coolDown))
 	}
 }

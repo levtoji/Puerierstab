@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	minReactions  = 2
-	maxLogEntries = 50
+	minReactions     = 2
+	maxLogEntries    = 50
+	coolDownDuration = 30 * time.Minute
 )
 
 type Config struct {
@@ -98,6 +99,21 @@ func New(cfg Config) *Reactor {
 
 func (r *Reactor) MemeLog() *MemeLog { return r.log }
 
+// tryBegin atomically checks the message cooldown, prunes expired entries
+// and marks the message as in-progress. Returns true if processing may start.
+func (r *Reactor) tryBegin(msgID snowflake.ID) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if last, ok := r.coolDown[msgID]; ok {
+		if time.Since(last) < coolDownDuration {
+			return false
+		}
+		delete(r.coolDown, msgID)
+	}
+	r.coolDown[msgID] = time.Now()
+	return true
+}
+
 func truncate(s string, max int) string {
 	if len(s) > max {
 		return s[:max]
@@ -160,13 +176,9 @@ func (r *Reactor) OnReactionAdd(event *events.GuildMessageReactionAdd) {
 		return
 	}
 
-	r.mu.Lock()
-	if last, ok := r.coolDown[msgID]; ok && time.Since(last) < 24*time.Hour {
-		r.mu.Unlock()
+	if !r.tryBegin(msgID) {
 		return
 	}
-	r.coolDown[msgID] = time.Now()
-	r.mu.Unlock()
 
 	context := content
 	prev, err := client.Rest.GetMessages(event.ChannelID, 0, msgID, 0, 3)
