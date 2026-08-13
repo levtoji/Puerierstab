@@ -25,8 +25,10 @@ internal/poll/       — multi-choice polls (Store, slash+component handlers)
 internal/icebreaker/ — random question from env JSON (or built-in defaults)
 internal/channelnamer/— AI-generated voice channel names once daily (OpenCode Zen, Big Pickle)
 internal/asciireact/  — keyword-based ASCII art reactions in chat
-internal/chatlog/     — message history per user (30d retention, for /roast)
+internal/chatlog/     — message history per user (90d retention, for /roast)
 internal/memereact/   — reaction-triggered AI meme/GIF poster (Giphy API)
+internal/reactions/   — emoji reactions per user (given/received, 90d, for /roast + profiles)
+internal/profile/     — daily 3 AM AI personality profiles per user from chatlog + reactions
 internal/reconnectmonitor/— counts gateway `Resumed` events, WARNs above 5 reconnects / 10 min
 ```
 
@@ -44,7 +46,7 @@ Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
 | `RENAME_CHANNEL_IDS` | no | comma-separated snowflakes, triggers AI channel naming |
 | `AI_API_KEY` | no | OpenCode Zen API key (required if RENAME_CHANNEL_IDS set) |
 | `AI_MODEL` | no | default `big-pickle` (free on OpenCode Zen) |
-| `AI_FALLBACK_MODEL` | no | used when primary model fails transiently — timeout, rate limit (429), or 5xx (e.g. `gpt-5.4-nano`, fast and cheap) |
+| `AI_FALLBACK_MODEL` | no | used when primary model fails transiently — timeout, rate limit (429), or 5xx (e.g. `gpt-5.4`) |
 | `AI_BASE_URL` | no | default `https://opencode.ai/zen/v1` |
 | `GIPHY_API_KEY` | no | required for reaction-triggered meme GIFs |
 | `DATA_DIR` | no | dir for `.chatlog.json`/`.polls.json`, default `.`; on Railway set to `/data` (volume) |

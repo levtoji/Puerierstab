@@ -20,6 +20,8 @@ import (
 	"github.com/levtoji/Puerierstab/internal/icebreaker"
 	"github.com/levtoji/Puerierstab/internal/memereact"
 	"github.com/levtoji/Puerierstab/internal/poll"
+	"github.com/levtoji/Puerierstab/internal/profile"
+	"github.com/levtoji/Puerierstab/internal/reactions"
 	"github.com/levtoji/Puerierstab/internal/reconnectmonitor"
 	"github.com/levtoji/Puerierstab/internal/rolepanel"
 )
@@ -49,6 +51,10 @@ func run() error {
 	stopChatCleanup := chatLog.StartCleanup()
 	defer close(stopChatCleanup)
 
+	reactionLog = reactions.New(cfg.DataDir)
+	stopReactionCleanup := reactionLog.StartCleanup()
+	defer close(stopReactionCleanup)
+
 	ibHandler, err := icebreaker.NewHandler()
 	if err != nil {
 		return err
@@ -64,6 +70,14 @@ func run() error {
 		LogChannelID:  cfg.ActivityLogChannelID,
 	})
 	channelNamer = namer
+
+	profilePipeline = profile.New(profile.Config{
+		APIKey:        cfg.AIAPIKey,
+		Model:         cfg.AIModel,
+		FallbackModel: cfg.AIFallbackModel,
+		BaseURL:       cfg.AIBaseURL,
+		Dir:           cfg.DataDir,
+	}, chatLog, reactionLog)
 
 	aiAPIKey = cfg.AIAPIKey
 	aiModel = cfg.AIModel
@@ -88,6 +102,7 @@ func run() error {
 		bot.WithEventListenerFunc(pollStore.HandleComponent),
 		bot.WithEventListenerFunc(reactor.OnMessageCreate),
 		bot.WithEventListenerFunc(chatLog.OnMessageCreate),
+		bot.WithEventListenerFunc(reactionLog.OnReactionAdd),
 		bot.WithEventListenerFunc(handleSlashCommand),
 		bot.WithEventListenerFunc(reconnectMonitor.OnResumed),
 	}
@@ -132,6 +147,14 @@ func run() error {
 		defer close(stopNamer)
 	} else if len(cfg.RenameChannelIDs) > 0 {
 		slog.Warn("channel namer disabled — AI_API_KEY missing")
+	}
+
+	if profilePipeline != nil {
+		slog.Info("profile pipeline active")
+		stopProfile := profilePipeline.Start()
+		defer close(stopProfile)
+	} else {
+		slog.Warn("profile pipeline disabled — AI_API_KEY missing")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
