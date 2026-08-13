@@ -241,7 +241,7 @@ func (r *Reactor) aiGateWithModel(content, model string) (string, bool) {
 	req.Header.Set("Authorization", "Bearer "+r.cfg.AIAPIKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return r.aiGateWithFallback(content, model, err)

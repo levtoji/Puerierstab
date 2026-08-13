@@ -44,7 +44,7 @@ Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
 | `RENAME_CHANNEL_IDS` | no | comma-separated snowflakes, triggers AI channel naming |
 | `AI_API_KEY` | no | OpenCode Zen API key (required if RENAME_CHANNEL_IDS set) |
 | `AI_MODEL` | no | default `big-pickle` (free on OpenCode Zen) |
-| `AI_FALLBACK_MODEL` | no | used when primary model fails transiently — timeout, rate limit (429), or 5xx (e.g. `deepseek-v4-flash`) |
+| `AI_FALLBACK_MODEL` | no | used when primary model fails transiently — timeout, rate limit (429), or 5xx (e.g. `gpt-5.4-nano`, fast and cheap) |
 | `AI_BASE_URL` | no | default `https://opencode.ai/zen/v1` |
 | `GIPHY_API_KEY` | no | required for reaction-triggered meme GIFs |
 | `DATA_DIR` | no | dir for `.chatlog.json`/`.polls.json`, default `.`; on Railway set to `/data` (volume) |

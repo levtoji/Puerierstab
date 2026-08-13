@@ -45,7 +45,7 @@ func New(cfg Config) *Namer {
 	}
 	return &Namer{
 		config:     cfg,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{Timeout: 60 * time.Second},
 	}
 }
 
