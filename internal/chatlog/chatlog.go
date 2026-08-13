@@ -109,7 +109,7 @@ func (l *Logger) GetMessages(userID snowflake.ID, maxAge time.Duration) []string
 func (l *Logger) cleanup() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	cutoff := time.Now().Add(-30 * 24 * time.Hour)
+	cutoff := time.Now().Add(-90 * 24 * time.Hour)
 	for userID, entries := range l.entries {
 		var kept []Entry
 		for _, e := range entries {

@@ -287,7 +287,7 @@ func handleBackfillChatlog(event *events.ApplicationCommandInteractionCreate) {
 			return
 		}
 
-		cutoff := time.Now().Add(-30 * 24 * time.Hour)
+		cutoff := time.Now().Add(-90 * 24 * time.Hour)
 		var entries []chatlog.Entry
 		for _, ch := range channels {
 			textCh, ok := ch.(discord.GuildTextChannel)
@@ -329,7 +329,7 @@ func handleBackfillChatlog(event *events.ApplicationCommandInteractionCreate) {
 		}
 
 		chatLog.ResetAndImport(entries)
-		respond(event, fmt.Sprintf("Chatlog neu aufgebaut: %d Nachrichten von %d Usern (30 Tage).", len(entries), chatLog.UserCount()))
+		respond(event, fmt.Sprintf("Chatlog neu aufgebaut: %d Nachrichten von %d Usern (90 Tage).", len(entries), chatLog.UserCount()))
 	}()
 }
 

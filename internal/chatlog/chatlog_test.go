@@ -72,15 +72,16 @@ func TestCleanup(t *testing.T) {
 
 	userID := snowflake.ID(1)
 	l.entries[userID] = []Entry{
-		{UserID: userID, Content: "alt", Timestamp: time.Now().Add(-40 * 24 * time.Hour)},
+		{UserID: userID, Content: "alt", Timestamp: time.Now().Add(-100 * 24 * time.Hour)},
+		{UserID: userID, Content: "mittel", Timestamp: time.Now().Add(-40 * 24 * time.Hour)},
 		{UserID: userID, Content: "neu", Timestamp: time.Now()},
 	}
 
 	l.cleanup()
 
 	entries := l.entries[userID]
-	if len(entries) != 1 || entries[0].Content != "neu" {
-		t.Fatalf("expected only 'neu' after cleanup, got %v", l.entries[userID])
+	if len(entries) != 2 || entries[0].Content != "mittel" || entries[1].Content != "neu" {
+		t.Fatalf("expected 'mittel' and 'neu' after cleanup, got %v", l.entries[userID])
 	}
 }
 
