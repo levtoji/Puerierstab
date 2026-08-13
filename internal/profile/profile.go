@@ -80,6 +80,20 @@ func (p *Profiler) Get(userID snowflake.ID) (Profile, bool) {
 	return prof, ok
 }
 
+func (p *Profiler) All() map[snowflake.ID]Profile {
+	return p.store.All()
+}
+
+func (s *Store) All() map[snowflake.ID]Profile {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[snowflake.ID]Profile, len(s.Profiles))
+	for id, prof := range s.Profiles {
+		out[id] = prof
+	}
+	return out
+}
+
 func (p *Profiler) Start() chan struct{} {
 	stop := make(chan struct{})
 	go func() {

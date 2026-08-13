@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/disgoorg/disgo/discord"
 	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/snowflake/v2"
 )
 
 func handleDashboard(event *events.ApplicationCommandInteractionCreate) {
@@ -88,6 +90,8 @@ func handleDump(event *events.ApplicationCommandInteractionCreate) {
 		handleDumpPolls(event)
 	case "memes":
 		handleDumpMemes(event)
+	case "profiles":
+		handleDumpProfiles(event)
 	}
 }
 
@@ -194,6 +198,52 @@ func handleDumpMemes(event *events.ApplicationCommandInteractionCreate) {
 		Title:       "🤖 Meme-Gate Log",
 		Description: strings.Join(lines, "\n"),
 		Color:       0x9B59B6,
+	}
+	_, _ = event.Client().Rest.UpdateInteractionResponse(
+		event.ApplicationID(), event.Token(),
+		discord.NewMessageUpdate().WithEmbeds(embed),
+	)
+}
+
+func handleDumpProfiles(event *events.ApplicationCommandInteractionCreate) {
+	if profilePipeline == nil {
+		respond(event, "Profil-Pipeline nicht aktiv (AI_API_KEY fehlt).")
+		return
+	}
+
+	all := profilePipeline.All()
+	if len(all) == 0 {
+		respond(event, "Noch keine Profile generiert. Nutze /generate-profiles.")
+		return
+	}
+
+	ids := make([]snowflake.ID, 0, len(all))
+	for id := range all {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
+	var fields []discord.EmbedField
+	for _, id := range ids {
+		prof := all[id]
+		text := prof.Text
+		if len(text) > 200 {
+			text = text[:200] + "..."
+		}
+		fields = append(fields, discord.EmbedField{
+			Name:   id.String(),
+			Value:  fmt.Sprintf("%s\n`aktualisiert: %s`", text, prof.UpdatedAt.Format("02.01. 15:04")),
+			Inline: boolPtr(false),
+		})
+		if len(fields) >= 10 {
+			break
+		}
+	}
+
+	embed := discord.Embed{
+		Title:  "👤 Profile",
+		Fields: fields,
+		Color:  0x5865F2,
 	}
 	_, _ = event.Client().Rest.UpdateInteractionResponse(
 		event.ApplicationID(), event.Token(),

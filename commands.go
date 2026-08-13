@@ -126,6 +126,7 @@ func registerCommandsOnReady(event *events.GuildReady) {
 						{Name: "Chatlog", Value: "chatlog"},
 						{Name: "Polls", Value: "polls"},
 						{Name: "Meme-Log", Value: "memes"},
+						{Name: "Profile", Value: "profiles"},
 					},
 				},
 			},

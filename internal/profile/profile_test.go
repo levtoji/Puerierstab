@@ -119,6 +119,20 @@ func TestGenerateProfileFallback(t *testing.T) {
 	}
 }
 
+func TestStoreAll(t *testing.T) {
+	s := &Store{Profiles: map[snowflake.ID]Profile{
+		snowflake.ID(1): {Text: "A", UpdatedAt: time.Now()},
+		snowflake.ID(2): {Text: "B", UpdatedAt: time.Now()},
+	}}
+	all := s.All()
+	if len(all) != 2 {
+		t.Fatalf("expected 2 profiles, got %d", len(all))
+	}
+	if all[snowflake.ID(1)].Text != "A" {
+		t.Fatalf("got %q", all[snowflake.ID(1)].Text)
+	}
+}
+
 func TestRunOncePersists(t *testing.T) {
 	dir := t.TempDir()
 	chat := chatlog.New(dir)
