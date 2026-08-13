@@ -46,6 +46,7 @@ Key pattern: feature packages under `internal/`, `main.go` only wires listeners.
 | `AI_FALLBACK_MODEL` | no | used when primary model hits rate limit (e.g. `deepseek-flash`) |
 | `AI_BASE_URL` | no | default `https://opencode.ai/zen/v1` |
 | `GIPHY_API_KEY` | no | required for reaction-triggered meme GIFs |
+| `DATA_DIR` | no | dir for `.chatlog.json`/`.polls.json`, default `.`; on Railway set to `/data` (volume) |
 
 ## disgo patterns & gotchas
 

@@ -12,14 +12,14 @@ import (
 )
 
 func TestNewStore(t *testing.T) {
-	store := NewStore()
+	store := NewStore(t.TempDir())
 	if store == nil {
 		t.Fatalf("expected non-nil store")
 	}
 }
 
 func TestCreateAndGetPoll(t *testing.T) {
-	store := NewStore()
+	store := NewStore(t.TempDir())
 	poll := store.Create("Test?", []string{"A", "B", "C"}, snowflake.ID(123))
 
 	if poll.ID == "" {
@@ -208,7 +208,7 @@ func itoa(i int) string {
 
 func TestPollCreatedAt(t *testing.T) {
 	before := time.Now()
-	store := NewStore()
+	store := NewStore(t.TempDir())
 	poll := store.Create("Test?", []string{"A", "B"}, snowflake.ID(1))
 	after := time.Now()
 

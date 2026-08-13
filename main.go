@@ -38,12 +38,12 @@ func run() error {
 	}
 
 	app := rolepanel.NewRoleBot(cfg)
-	pollStore = poll.NewStore()
+	pollStore = poll.NewStore(cfg.DataDir)
 	reactor := asciireact.New()
 	stopCleanup := pollStore.StartCleanup()
 	defer close(stopCleanup)
 
-	chatLog = chatlog.New()
+	chatLog = chatlog.New(cfg.DataDir)
 	stopChatCleanup := chatLog.StartCleanup()
 	defer close(stopChatCleanup)
 

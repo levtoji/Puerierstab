@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -23,10 +24,10 @@ type Logger struct {
 	mu       sync.RWMutex
 }
 
-func New() *Logger {
+func New(dir string) *Logger {
 	l := &Logger{
 		entries:  make(map[snowflake.ID][]Entry),
-		filePath: ".chatlog.json",
+		filePath: filepath.Join(dir, ".chatlog.json"),
 	}
 	l.load()
 	return l

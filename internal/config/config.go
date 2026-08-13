@@ -22,6 +22,7 @@ const (
 	aiBaseURLEnv          = "AI_BASE_URL"
 	aiFallbackModelEnv    = "AI_FALLBACK_MODEL"
 	giphyAPIKeyEnv        = "GIPHY_API_KEY"
+	dataDirEnv            = "DATA_DIR"
 	maxButtonsPerRow      = 5
 	maxRowsPerMessage     = 5
 )
@@ -37,6 +38,7 @@ type Config struct {
 	AIFallbackModel     string
 	AIBaseURL           string
 	GiphyAPIKey         string
+	DataDir             string
 }
 
 type RoleCategory struct {
@@ -84,6 +86,10 @@ func LoadConfigFromEnv() (Config, error) {
 	aiBaseURL := strings.TrimSpace(os.Getenv(aiBaseURLEnv))
 	aiFallbackModel := strings.TrimSpace(os.Getenv(aiFallbackModelEnv))
 	giphyAPIKey := strings.TrimSpace(os.Getenv(giphyAPIKeyEnv))
+	dataDir := strings.TrimSpace(os.Getenv(dataDirEnv))
+	if dataDir == "" {
+		dataDir = "."
+	}
 
 	return Config{
 		Token:               token,
@@ -96,6 +102,7 @@ func LoadConfigFromEnv() (Config, error) {
 		AIFallbackModel:     aiFallbackModel,
 		AIBaseURL:           aiBaseURL,
 		GiphyAPIKey:         giphyAPIKey,
+		DataDir:             dataDir,
 	}, nil
 }
 

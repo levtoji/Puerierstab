@@ -11,9 +11,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/puerier
 
 FROM alpine:3.22
 
-RUN adduser -D -H appuser
+RUN adduser -D -H appuser \
+    && mkdir /app /data \
+    && chown appuser /app /data
 
 USER appuser
+WORKDIR /app
 
 COPY --from=build /out/puerierstab /usr/local/bin/puerierstab
 

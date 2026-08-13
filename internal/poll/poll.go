@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,10 +23,10 @@ type Store struct {
 	mu       sync.RWMutex
 }
 
-func NewStore() *Store {
+func NewStore(dir string) *Store {
 	s := &Store{
 		polls:    make(map[string]*Poll),
-		filePath: ".polls.json",
+		filePath: filepath.Join(dir, ".polls.json"),
 	}
 	s.load()
 	return s
