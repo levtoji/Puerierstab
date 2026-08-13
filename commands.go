@@ -290,7 +290,7 @@ func handleBackfillChatlog(event *events.ApplicationCommandInteractionCreate) {
 		cutoff := time.Now().Add(-30 * 24 * time.Hour)
 		var entries []chatlog.Entry
 		for _, ch := range channels {
-			textCh, ok := ch.(*discord.GuildTextChannel)
+			textCh, ok := ch.(discord.GuildTextChannel)
 			if !ok {
 				continue
 			}
