@@ -24,11 +24,11 @@ const (
 )
 
 type Config struct {
-	AIAPIKey      string
-	AIModel       string
+	AIAPIKey        string
+	AIModel         string
 	AIFallbackModel string
-	AIBaseURL     string
-	GiphyAPIKey   string
+	AIBaseURL       string
+	GiphyAPIKey     string
 }
 
 type MemeEntry struct {
@@ -244,14 +244,17 @@ func (r *Reactor) aiGateWithModel(content, model string) (string, bool) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Warn("ai gate failed", slog.Any("err", err))
-		return "", false
+		return r.aiGateWithFallback(content, model, err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 429 && r.cfg.AIFallbackModel != "" && model != r.cfg.AIFallbackModel {
-		slog.Warn("AI model rate limited, falling back", slog.String("from", model), slog.String("to", r.cfg.AIFallbackModel))
-		return r.aiGateWithModel(content, r.cfg.AIFallbackModel)
+	if resp.StatusCode != 200 {
+		err := fmt.Errorf("AI API returned %d", resp.StatusCode)
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			return r.aiGateWithFallback(content, model, err)
+		}
+		slog.Warn("ai gate failed", slog.Any("err", err))
+		return "", false
 	}
 
 	var cr struct {
@@ -270,6 +273,18 @@ func (r *Reactor) aiGateWithModel(content, model string) (string, bool) {
 		return "", false
 	}
 	return result, true
+}
+
+// aiGateWithFallback retries once with the configured fallback model when the
+// primary model failed transiently (timeout, rate limit, server error). The
+// model guard prevents an endless fallback loop.
+func (r *Reactor) aiGateWithFallback(content, model string, err error) (string, bool) {
+	if r.cfg.AIFallbackModel == "" || model == r.cfg.AIFallbackModel {
+		slog.Warn("ai gate failed", slog.Any("err", err))
+		return "", false
+	}
+	slog.Warn("AI primary model failed, falling back", slog.String("from", model), slog.String("to", r.cfg.AIFallbackModel), slog.Any("err", err))
+	return r.aiGateWithModel(content, r.cfg.AIFallbackModel)
 }
 
 type giphyResponse struct {

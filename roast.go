@@ -112,18 +112,17 @@ func callAIWithModel(system, prompt, model string) (string, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return tryFallback(system, prompt, model, err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 429 && aiFallbackModel != "" && model != aiFallbackModel {
-		slog.Warn("AI model rate limited, falling back", slog.String("from", model), slog.String("to", aiFallbackModel))
-		return callAIWithModel(system, prompt, aiFallbackModel)
-	}
-
 	if resp.StatusCode != 200 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("AI API returned %d: %s", resp.StatusCode, string(respBody))
+		err := fmt.Errorf("AI API returned %d: %s", resp.StatusCode, string(respBody))
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			return tryFallback(system, prompt, model, err)
+		}
+		return "", err
 	}
 
 	var cr chatResponse
@@ -135,4 +134,15 @@ func callAIWithModel(system, prompt, model string) (string, error) {
 	}
 
 	return cr.Choices[0].Message.Content, nil
+}
+
+// tryFallback retries once with the configured fallback model when the primary
+// model failed transiently (timeout, rate limit, server error). The model
+// guard prevents an endless fallback loop if the fallback model also fails.
+func tryFallback(system, prompt, model string, err error) (string, error) {
+	if aiFallbackModel == "" || model == aiFallbackModel {
+		return "", err
+	}
+	slog.Warn("AI primary model failed, falling back", slog.String("from", model), slog.String("to", aiFallbackModel), slog.Any("err", err))
+	return callAIWithModel(system, prompt, aiFallbackModel)
 }

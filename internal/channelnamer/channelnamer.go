@@ -234,18 +234,17 @@ func (n *Namer) generateNamesWithModel(recent []string, model string) ([]string,
 
 	resp, err := n.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return n.generateNamesWithFallback(recent, model, err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 429 && n.config.FallbackModel != "" && model != n.config.FallbackModel {
-		slog.Warn("AI model rate limited, falling back", slog.String("from", model), slog.String("to", n.config.FallbackModel))
-		return n.generateNamesWithModel(recent, n.config.FallbackModel)
-	}
-
 	if resp.StatusCode != 200 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("AI API returned %d: %s", resp.StatusCode, string(respBody))
+		err := fmt.Errorf("AI API returned %d: %s", resp.StatusCode, string(respBody))
+		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
+			return n.generateNamesWithFallback(recent, model, err)
+		}
+		return nil, err
 	}
 
 	var cr chatResponse
@@ -261,6 +260,17 @@ func (n *Namer) generateNamesWithModel(recent []string, model string) ([]string,
 		return nil, fmt.Errorf("AI returned too few names: %d", len(names))
 	}
 	return names, nil
+}
+
+// generateNamesWithFallback retries once with the configured fallback model
+// when the primary model failed transiently (timeout, rate limit, server
+// error). The model guard prevents an endless fallback loop.
+func (n *Namer) generateNamesWithFallback(recent []string, model string, err error) ([]string, error) {
+	if n.config.FallbackModel == "" || model == n.config.FallbackModel {
+		return nil, err
+	}
+	slog.Warn("AI primary model failed, falling back", slog.String("from", model), slog.String("to", n.config.FallbackModel), slog.Any("err", err))
+	return n.generateNamesWithModel(recent, n.config.FallbackModel)
 }
 
 func parseNames(response string) ([]string, bool) {
