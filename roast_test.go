@@ -186,3 +186,27 @@ func TestCallAINoFallbackOnClientError(t *testing.T) {
 		t.Fatalf("expected 1 API call (client error must not fall back), got %d", srv.calls.Load())
 	}
 }
+
+func TestBuildRoastPrompt(t *testing.T) {
+	history := "kevin: heute wieder pizza"
+	profileText := "Kevin ist ein Pizza-Enthusiast."
+	given := map[string]int{"🍕": 3}
+	received := map[string]int{"🔥": 5}
+
+	p := buildRoastPrompt("Kevin", history, profileText, given, received)
+	for _, want := range []string{"Kevin", "heute wieder pizza", "Pizza-Enthusiast", "🍕 (3)", "🔥 (5)"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("expected prompt to contain %q, got:\n%s", want, p)
+		}
+	}
+}
+
+func TestBuildRoastPromptWithoutProfileAndReactions(t *testing.T) {
+	p := buildRoastPrompt("Kevin", "", "", nil, nil)
+	if !strings.Contains(p, "Kevin") {
+		t.Fatalf("expected prompt to contain name, got:\n%s", p)
+	}
+	if strings.Contains(p, "Profil") || strings.Contains(p, "Reaktionen") {
+		t.Fatalf("expected no profile/reaction sections, got:\n%s", p)
+	}
+}

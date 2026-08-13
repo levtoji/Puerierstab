@@ -16,6 +16,8 @@ import (
 	"github.com/levtoji/Puerierstab/internal/icebreaker"
 	"github.com/levtoji/Puerierstab/internal/memereact"
 	"github.com/levtoji/Puerierstab/internal/poll"
+	"github.com/levtoji/Puerierstab/internal/profile"
+	"github.com/levtoji/Puerierstab/internal/reactions"
 )
 
 var (
@@ -25,6 +27,8 @@ var (
 	icebreakerHandler  *icebreaker.Handler
 	channelNamer       *channelnamer.Namer
 	chatLog            *chatlog.Logger
+	reactionLog        *reactions.Logger
+	profilePipeline    *profile.Profiler
 	aiAPIKey         string
 	aiModel          string
 	aiFallbackModel  string

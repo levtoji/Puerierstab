@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -24,12 +25,12 @@ func handleRoast(event *events.ApplicationCommandInteractionCreate) {
 
 	var history string
 	if chatLog != nil {
-		msgs := chatLog.GetMessages(target.ID, 30*24*time.Hour)
+		msgs := chatLog.GetMessages(target.ID, 90*24*time.Hour)
 		if len(msgs) > 0 {
 			var trimmed []string
 			total := 0
 			for i := len(msgs) - 1; i >= 0; i-- {
-				if total+len(msgs[i]) > 500 {
+				if total+len(msgs[i]) > 1500 {
 					break
 				}
 				trimmed = append([]string{msgs[i]}, trimmed...)
@@ -39,9 +40,21 @@ func handleRoast(event *events.ApplicationCommandInteractionCreate) {
 		}
 	}
 
+	var profileText string
+	if profilePipeline != nil {
+		if prof, ok := profilePipeline.Get(target.ID); ok {
+			profileText = prof.Text
+		}
+	}
+
+	var given, received map[string]int
+	if reactionLog != nil {
+		given, received = reactionLog.Stats(target.ID, 90*24*time.Hour)
+	}
+
 	roast, err := callAI(
-		"Du schreibst witzige, bissige Einzeiler. Kurz und pointiert. Deutsch.",
-		buildRoastPrompt(target.EffectiveName(), history),
+		"Du schreibst witzige, bissige Einzeiler. Ein ganzer, grammatikalisch korrekter, verständlicher Satz. Kein zusammenhangloser Slang. Kurz und pointiert. Deutsch.",
+		buildRoastPrompt(target.EffectiveName(), history, profileText, given, received),
 	)
 	if err != nil {
 		slog.Warn("roast AI failed", slog.Any("err", err))
@@ -76,11 +89,54 @@ type chatChoice struct {
 	Message chatMessage `json:"message"`
 }
 
-func buildRoastPrompt(name string, history string) string {
-	if history == "" {
-		return fmt.Sprintf("Mach einen witzigen Einzeiler über jemanden namens @%s von dem wir absolut nichts wissen. Das ist der Witz — wir wissen nichts. Ein Satz. Deutsch.\n\nGutes Beispiel: \"@Kevin — selbst Siri sagt 'keine Ergebnisse' wenn sie nach deiner Persönlichkeit sucht.\"", name)
+func buildRoastPrompt(name, history, profileText string, given, received map[string]int) string {
+	var b strings.Builder
+	if profileText != "" {
+		b.WriteString(fmt.Sprintf("Profil von @%s: %s\n\n", name, profileText))
 	}
-	return fmt.Sprintf("Chat von @%s:\n%s\n\nEin einziger kurzer, bissiger Satz der sich über DAS EINE lustigste Detail lustig macht. Keine Erklärung, kein Aufbau. Nur der Punch. Deutsch.\n\nGutes Beispiel: \"@Kevin — du hast 3x 'Pizza' geschrieben diese Woche. Dein Magen hat mehr Persönlichkeit als du.\"", name, history)
+	if len(given) > 0 || len(received) > 0 {
+		if g := formatEmojiTop(given, 5); g != "" {
+			b.WriteString(fmt.Sprintf("Top-Reaktionen, die @%s vergibt: %s\n", name, g))
+		}
+		if r := formatEmojiTop(received, 5); r != "" {
+			b.WriteString(fmt.Sprintf("Top-Reaktionen auf @%s's Nachrichten: %s\n", name, r))
+		}
+		b.WriteString("\n")
+	}
+	if history == "" {
+		b.WriteString(fmt.Sprintf("Mach einen witzigen Einzeiler über jemanden namens @%s von dem wir absolut nichts wissen. Das ist der Witz — wir wissen nichts. Ein Satz. Deutsch.\n\nGutes Beispiel: \"@Kevin — selbst Siri sagt 'keine Ergebnisse' wenn sie nach deiner Persönlichkeit sucht.\"", name))
+		return b.String()
+	}
+	b.WriteString(fmt.Sprintf("Chat von @%s:\n%s\n\nEin einziger kurzer, bissiger Satz der sich über DAS EINE lustigste Detail lustig macht. Keine Erklärung, kein Aufbau. Nur der Punch. Deutsch.\n\nGutes Beispiel: \"@Kevin — du hast 3x 'Pizza' geschrieben diese Woche. Dein Magen hat mehr Persönlichkeit als du.\"", name, history))
+	return b.String()
+}
+
+func formatEmojiTop(counts map[string]int, limit int) string {
+	if len(counts) == 0 {
+		return ""
+	}
+	type pair struct {
+		emoji string
+		count int
+	}
+	pairs := make([]pair, 0, len(counts))
+	for e, c := range counts {
+		pairs = append(pairs, pair{e, c})
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].count != pairs[j].count {
+			return pairs[i].count > pairs[j].count
+		}
+		return pairs[i].emoji < pairs[j].emoji
+	})
+	var parts []string
+	for i, p := range pairs {
+		if i >= limit {
+			break
+		}
+		parts = append(parts, fmt.Sprintf("%s (%d)", p.emoji, p.count))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func callAI(system, prompt string) (string, error) {
@@ -90,7 +146,7 @@ func callAI(system, prompt string) (string, error) {
 func callAIWithModel(system, prompt, model string) (string, error) {
 	reqBody := chatRequest{
 		Model:       model,
-		Temperature: 1.2,
+		Temperature: 1.0,
 		Messages: []chatMessage{
 			{Role: "system", Content: system},
 			{Role: "user", Content: prompt},
